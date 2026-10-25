@@ -1,0 +1,110 @@
+<mujoco model="Printed_Bots_quadruped_spider_12servo_approx">
+  <!--
+    Approximate MuJoCo model for the Printed Bots Quadruped Spider Robot kit.
+    The kit listing identifies a 3D-printed four-leg frame, but does not publish
+    CAD dimensions or joint limits. Link lengths, masses, stance, and ranges below
+    are therefore placeholders. Measure the assembled V1/V2 print before using
+    this as a digital twin or commanding physical servos.
+
+    Each leg has a coxa/yaw joint, femur/pitch joint, and tibia/knee joint.
+    Existing joint and actuator names are kept for compatibility with
+    control_test.py. Coordinates: X forward, Y left, Z up; lengths in metres.
+  -->
+  <compiler angle="radian" autolimits="true"/>
+  <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
+  <size njmax="800" nconmax="300"/>
+
+  <default>
+    <joint damping="0.12" armature="0.006" limited="true"/>
+    <geom condim="3" friction="0.9 0.02 0.002" solref="0.01 1" solimp="0.9 0.95 0.001"/>
+    <position kp="5" kv="0.2" ctrllimited="true" ctrlrange="-1.5 1.5" forcelimited="true" forcerange="-0.18 0.18"/>
+  </default>
+
+  <worldbody>
+    <light name="top_light" pos="0 -1 2" dir="0 0 -1"/>
+    <geom name="floor" type="plane" pos="0 0 0" size="2 2 0.1" rgba="0.78 0.80 0.83 1"/>
+
+    <!-- Chassis and leg pivots are estimated; adjust from the actual print. -->
+    <body name="chassis" pos="0 0 0.12">
+      <freejoint name="root"/>
+      <geom name="chassis_geom" type="box" size="0.065 0.045 0.012" mass="0.25" rgba="0.18 0.35 0.55 1"/>
+      <geom name="front_camera_module_geom" type="box" pos="0.070 0 0.015" size="0.014 0.012 0.009" mass="0.008" rgba="0.08 0.08 0.08 1"/>
+      <camera name="front_camera" pos="0.084 0 0.015" xyaxes="0 -1 0 0.342 0 0.940" fovy="75"/>
+
+      <!-- Front-left leg: coxa yaw, femur pitch, tibia pitch. -->
+      <body name="front_left_hip" pos="0.048 0.034 0" quat="0.92388 0 0 0.382683">
+        <joint name="front_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
+        <geom name="front_left_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.008" mass="0.02" rgba="0.85 0.55 0.18 1"/>
+        <body name="front_left_upper" pos="0.030 0 0">
+          <joint name="front_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
+          <geom name="front_left_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.009" mass="0.035" rgba="0.20 0.65 0.45 1"/>
+          <body name="front_left_lower" pos="0.035 0 -0.045">
+            <joint name="front_left_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
+            <geom name="front_left_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.008" mass="0.025" rgba="0.20 0.65 0.45 1"/>
+            <geom name="front_left_foot" type="sphere" pos="0.045 0 -0.055" size="0.011" mass="0.008" rgba="0.12 0.12 0.12 1"/>
+          </body>
+        </body>
+      </body>
+
+      <!-- Front-right leg. -->
+      <body name="front_right_hip" pos="0.048 -0.034 0" quat="0.92388 0 0 -0.382683">
+        <joint name="front_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
+        <geom name="front_right_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.008" mass="0.02" rgba="0.85 0.55 0.18 1"/>
+        <body name="front_right_upper" pos="0.030 0 0">
+          <joint name="front_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
+          <geom name="front_right_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.009" mass="0.035" rgba="0.20 0.65 0.45 1"/>
+          <body name="front_right_lower" pos="0.035 0 -0.045">
+            <joint name="front_right_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
+            <geom name="front_right_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.008" mass="0.025" rgba="0.20 0.65 0.45 1"/>
+            <geom name="front_right_foot" type="sphere" pos="0.045 0 -0.055" size="0.011" mass="0.008" rgba="0.12 0.12 0.12 1"/>
+          </body>
+        </body>
+      </body>
+
+      <!-- Rear-left leg. -->
+      <body name="rear_left_hip" pos="-0.048 0.034 0" quat="0.382683 0 0 0.92388">
+        <joint name="rear_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
+        <geom name="rear_left_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.008" mass="0.02" rgba="0.85 0.55 0.18 1"/>
+        <body name="rear_left_upper" pos="0.030 0 0">
+          <joint name="rear_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
+          <geom name="rear_left_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.009" mass="0.035" rgba="0.20 0.65 0.45 1"/>
+          <body name="rear_left_lower" pos="0.035 0 -0.045">
+            <joint name="rear_left_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
+            <geom name="rear_left_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.008" mass="0.025" rgba="0.20 0.65 0.45 1"/>
+            <geom name="rear_left_foot" type="sphere" pos="0.045 0 -0.055" size="0.011" mass="0.008" rgba="0.12 0.12 0.12 1"/>
+          </body>
+        </body>
+      </body>
+
+      <!-- Rear-right leg. -->
+      <body name="rear_right_hip" pos="-0.048 -0.034 0" quat="0.382683 0 0 -0.92388">
+        <joint name="rear_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
+        <geom name="rear_right_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.008" mass="0.02" rgba="0.85 0.55 0.18 1"/>
+        <body name="rear_right_upper" pos="0.030 0 0">
+          <joint name="rear_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
+          <geom name="rear_right_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.009" mass="0.035" rgba="0.20 0.65 0.45 1"/>
+          <body name="rear_right_lower" pos="0.035 0 -0.045">
+            <joint name="rear_right_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
+            <geom name="rear_right_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.008" mass="0.025" rgba="0.20 0.65 0.45 1"/>
+            <geom name="rear_right_foot" type="sphere" pos="0.045 0 -0.055" size="0.011" mass="0.008" rgba="0.12 0.12 0.12 1"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position name="front_left_hip_abduction_motor" joint="front_left_hip_abduction"/>
+    <position name="front_left_hip_pitch_motor" joint="front_left_hip_pitch"/>
+    <position name="front_left_knee_pitch_motor" joint="front_left_knee_pitch"/>
+    <position name="front_right_hip_abduction_motor" joint="front_right_hip_abduction"/>
+    <position name="front_right_hip_pitch_motor" joint="front_right_hip_pitch"/>
+    <position name="front_right_knee_pitch_motor" joint="front_right_knee_pitch"/>
+    <position name="rear_left_hip_abduction_motor" joint="rear_left_hip_abduction"/>
+    <position name="rear_left_hip_pitch_motor" joint="rear_left_hip_pitch"/>
+    <position name="rear_left_knee_pitch_motor" joint="rear_left_knee_pitch"/>
+    <position name="rear_right_hip_abduction_motor" joint="rear_right_hip_abduction"/>
+    <position name="rear_right_hip_pitch_motor" joint="rear_right_hip_pitch"/>
+    <position name="rear_right_knee_pitch_motor" joint="rear_right_knee_pitch"/>
+  </actuator>
+</mujoco>
