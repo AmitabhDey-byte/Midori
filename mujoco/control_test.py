@@ -19,10 +19,11 @@ MODEL_PATH = HERE / "hello.xml"
 LOG_DIR = HERE / "logs"
 LOG_PERIOD_SECONDS = 0.1  # 10 rows per real-time second, even if simulation runs faster
 MAX_ROWS_PER_LOG = 5000   # Start a new CSV after about 8 minutes 20 seconds
-GAIT_FREQUENCY_HZ = 0.75
-STRIDE_METRES = 0.035
+GAIT_FREQUENCY_HZ = 1.05
+STRIDE_METRES = 0.050
+TURN_STRIDE_METRES = 0.090
 SWING_FRACTION = 0.25
-FOOT_LIFT_METRES = 0.020
+FOOT_LIFT_METRES = 0.022
 
 JOINTS = [
     ("Front left coxa yaw", "front_left_hip_abduction"),
@@ -159,26 +160,28 @@ def crawl_targets(sim_time, mode):
         return targets
 
     direction = -1.0 if mode == "backward" else 1.0
+    # During stance the stride offset moves from +half-stride to -half-stride,
+    # so the target tangent is opposite the requested chassis rotation.
     turn_sign = -1.0 if mode == "left" else 1.0
+    stride_metres = TURN_STRIDE_METRES if mode in ("left", "right") else STRIDE_METRES
     cycle = sim_time * GAIT_FREQUENCY_HZ
 
     for leg_name, (hip_x, hip_y, heading, phase_offset) in LEG_INFO.items():
         phase = (cycle + phase_offset) % 1.0
         if phase < SWING_FRACTION:
             swing_progress = phase / SWING_FRACTION
-            stride_offset = (-0.5 + swing_progress) * STRIDE_METRES
+            stride_offset = (-0.5 + swing_progress) * stride_metres
             foot_lift = FOOT_LIFT_METRES * math.sin(math.pi * swing_progress)
         else:
             stance_progress = (phase - SWING_FRACTION) / (1.0 - SWING_FRACTION)
-            stride_offset = (0.5 - stance_progress) * STRIDE_METRES
+            stride_offset = (0.5 - stance_progress) * stride_metres
             foot_lift = 0.0
 
         if mode in ("forward", "backward"):
             travel_x = direction
             travel_y = 0.0
         else:
-            # A positive left turn sweeps stance feet along the clockwise tangent
-            # relative to the body; the ground reaction turns the chassis left.
+            # The ground-relative stance sweep produces the requested chassis yaw.
             travel_x = turn_sign * math.sin(heading)
             travel_y = -turn_sign * math.cos(heading)
 
@@ -266,8 +269,8 @@ def main():
     drive_buttons = [
         ("Forward", "forward"),
         ("Backward", "backward"),
-        ("Left", "left"),
-        ("Right", "right"),
+        ("Turn Left", "left"),
+        ("Turn Right", "right"),
     ]
     for index, (label, mode) in enumerate(drive_buttons):
         button = ttk.Button(drive_frame, text=label)

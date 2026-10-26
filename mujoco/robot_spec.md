@@ -5,7 +5,8 @@
 - Printed Bots Quadruped Spider Robot, 3D-printed frame kit.
 - The linked kit is sold without servos. Midori's intended assembled configuration is 12 servos: 3 per leg.
 - The seller describes two frame variants for original-size and larger-clone servo horns. Confirm which version matches the printed parts before finalizing servo mounts.
-- The model below is a spider-style approximation, not a dimensionally accurate twin. The listing does not provide CAD dimensions or joint limits.
+- The current MuJoCo appearance was revised from the supplied perspective CAD screenshot to include the center frame, electronics panel, compact inset servo details, small horn discs, bracketed links, and pointed toe tips (not spherical feet).
+- The screenshot is not a dimensioned CAD export. The model remains a spider-style approximation, not a dimensionally accurate twin; the listing/image does not establish overall dimensions, pivot coordinates, masses, or joint limits.
 
 ## 1. Main chassis
 
@@ -35,3 +36,5 @@
 - [ ] Servo model and kit version (original-size or larger-clone horn)
 - [ ] Joint axes, servo horn zero positions, and safe angular limits
 - [ ] Total assembled weight and center of mass
+- [ ] Overall stance width/length and ground clearance
+- [ ] Servo case dimensions and horn orientation at each joint

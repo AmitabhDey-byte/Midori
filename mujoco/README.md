@@ -46,14 +46,14 @@ This is a virtual simulation camera. A physical camera module, its connection to
 The Drive panel uses hold-to-move controls:
 
 - Hold Forward or Backward to move; release the button to stop the gait.
-- Hold Left or Right to turn; release the button to stop turning.
+- Hold Turn Left or Turn Right to rotate; release the button to stop turning.
 - The arrow keys and WASD do the same while the Tkinter control window has keyboard focus. Releasing the key stops that motion.
 - Stop ends the gait and holds the current slider targets.
 - Stop and return to standing pose stops the gait and sets the joint targets to the model's standing pose.
 
 The standing pose splays the femurs away from the chassis and points the tibias down to the floor, giving the robot a low, crab-like stance. The default viewer camera is set to show the legs from above and from one side.
 
-The gait is a slow crawl sequence. It assigns a different phase to each leg so only one foot lifts at a time. Each foot follows a small stance and swing path, and inverse kinematics converts that foot target to coxa, femur, and tibia angles. This replaces the earlier whole-joint sine pattern.
+The gait is a quicker continuous crawl sequence. It assigns a different phase to each leg so only one foot lifts at a time while the other three support the body. Forward/backward use a 50 mm stance/swing path; turns use a wider 90 mm arc to make yaw changes visible. Foot lift is about 22 mm and the nominal cycle is 1.05 Hz. Inverse kinematics converts foot targets to coxa, femur, and tibia angles. Direction buttons and keys keep hold-to-move behavior: pressing starts the selected gait, and releasing returns control to the standing pose. Left and right use opposite stance sweeps. Servo housings, horn discs, and decorative bracket rails are visual-only geoms with contact disabled; the frame, primary links, feet, and floor provide the physical contacts.
 
 This remains an initial simulator gait, not a calibrated physical-robot controller. The model uses estimated dimensions and contact properties. It can still slide, tip, or walk imperfectly; tune it against the exact printed frame before transferring commands to hardware. Use the sliders for individual joint inspection.
 
@@ -84,7 +84,9 @@ Logs are written and flushed while the simulation is running, so a normally clos
 | `*_hip_pitch` | Femur pitch |
 | `*_knee_pitch` | Tibia/knee pitch |
 
-The model uses gravity, contact with a ground plane, and position actuators for the 12 joints. It uses simple capsule and sphere geometry for the printed links, rather than the kit's actual STL meshes.
+The model uses gravity, contact with a ground plane, and position actuators for the 12 joints. The visible geometry has been revised using the supplied CAD screenshot as a visual reference: a rectangular center frame with a raised perimeter, a blue electronics panel, compact inset servo details, small horn discs, and light printed-style brackets and link rails. The lower links taper visually and end in small pointed tips; there are no spherical wheel-like feet. Servo cases, horns, and decorative rails are visual-only so they do not collide with and jam the moving links. The frame, primary links, pointed tips, and floor provide the physical contacts.
+
+The screenshot is a perspective image rather than a dimensioned CAD export. The XML therefore remains a visual/mechanical approximation: the original STL meshes, exact servo models, pivot coordinates, frame dimensions, link lengths, masses, center of mass, and joint stops have not been recovered from the image. The control-facing joint and actuator names remain unchanged. Do not interpret the visual update as measured mechanical calibration.
 
 ### Assumptions that still need measurements
 
@@ -113,9 +115,9 @@ The intended later project is a multimodal language model, approximately 150 mil
 
 These are plans, not implemented features. There is currently no multimodal model, custom dataset, pretraining run, SFT or RL pipeline, physics-informed network, mobile inference app, or ESP32 communication code in this folder. The 150M parameter size and 5B token estimate are preliminary project targets; architecture, data rights and quality, compute, evaluation, and deployment performance still need to be worked out.
 
-## Existing simulator screenshot
+## Current simulator preview
 
-The screenshot below shows the current model's intended standing pose.
+The screenshot below shows the CAD-inspired model in its standing pose. Blue insets represent approximate servo locations, the small purple discs represent approximate horns, and the pale link rails represent the printed brackets/links. The narrow, light-colored tips replace the earlier round feet. Colors and shapes are visual aids, not verified surface geometry.
 
 ![Earlier MuJoCo prototype screenshot](screenshot.png)
 
