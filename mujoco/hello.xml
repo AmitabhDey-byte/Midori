@@ -1,11 +1,10 @@
 <mujoco model="Printed_Bots_quadruped_spider_12servo_approx">
   <!--
-    Visual approximation updated from the uploaded CAD screenshot of the
-    Printed Bots Quadruped Spider Robot. It models the rectangular centre frame,
-    board, blue servo cases, horn discs, white printed brackets, and four outward
-    legs. The screenshot is perspective-only and does not provide reliable overall
-    dimensions, so all sizes, masses, and joint ranges remain placeholders. Measure
-    the assembled print before treating this as a digital twin or commanding servos.
+    Visual model uses the supplied body, coxa, femur, hinge, and pointed tibia
+    STL meshes. CAD body parts share one frame; leg parts are placed on articulated
+    links using estimated pivots and orientations. Collision proxies remain simple
+    boxes, capsules, and hidden toe contacts, so this is still not a calibrated
+    digital twin. Confirm servo zeroes, stops, and clearances before hardware use.
 
     Each leg has a coxa/yaw joint, femur/pitch joint, and tibia/knee joint.
     Existing joint and actuator names are kept for compatibility with
@@ -22,12 +21,23 @@
     <default class="contact">
       <geom contype="1" conaffinity="1"/>
     </default>
-    <position kp="5" kv="0.2" ctrllimited="true" ctrlrange="-1.5 1.5" forcelimited="true" forcerange="-0.18 0.18"/>
+    <!-- Virtual servo tuning improves target tracking in the visual simulator.
+         Measure the real servos before using these limits for hardware. -->
+    <position kp="10" kv="0.5" ctrllimited="true" ctrlrange="-1.5 1.5" forcelimited="true" forcerange="-0.45 0.45"/>
   </default>
 
   <asset>
-    <!-- Small square-pyramid foot tips, pointing along the tibia. -->
-    <mesh name="pointed_leg_tip" vertex="-0.004 -0.004 0  0.004 -0.004 0  0.004 0.004 0  -0.004 0.004 0  0 0 0.011" face="0 1 4  1 2 4  2 3 4  3 0 4  0 3 2  0 2 1"/>
+    <!-- Supplied printed parts, kept as articulated visual geometry. -->
+    <mesh name="printed_body_lower" file="assets/body-d.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_body_upper" file="assets/body-u.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_body_middle" file="assets/body-m.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_coxa_front" file="assets/coxa-f.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_coxa_rear" file="assets/coxa-b.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_femur" file="assets/femur.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_tibia_front" file="assets/tibia-f.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_tibia_rear" file="assets/tibia-b.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="printed_hinge" file="assets/hinge.stl" scale="0.001 0.001 0.001"/>
+    <!-- Tiny hidden contact proxy at each claw tip; the visible tip is the STL. -->
   </asset>
 
   <worldbody>
@@ -37,122 +47,146 @@
     <!-- CAD-inspired central frame. Dimensions remain approximate. -->
     <body name="chassis" pos="0 0 0.12">
       <freejoint name="root"/>
-      <!-- Main printed center plate and raised perimeter ribs. -->
-      <geom class="contact" name="chassis_geom" type="box" size="0.065 0.045 0.006" pos="0 0 0" mass="0.25" rgba="0.69 0.78 0.30 1"/>
-      <geom name="frame_left_rail" type="box" pos="0 0.040 0.008" size="0.061 0.004 0.004" mass="0.006" rgba="0.80 0.82 0.78 1"/>
-      <geom name="frame_right_rail" type="box" pos="0 -0.040 0.008" size="0.061 0.004 0.004" mass="0.006" rgba="0.80 0.82 0.78 1"/>
-      <geom name="frame_front_rail" type="box" pos="0.060 0 0.008" size="0.004 0.035 0.004" mass="0.004" rgba="0.80 0.82 0.78 1"/>
-      <geom name="frame_rear_rail" type="box" pos="-0.060 0 0.008" size="0.004 0.035 0.004" mass="0.004" rgba="0.80 0.82 0.78 1"/>
+      <!-- Compact collision core stays inside the supplied printed frame. -->
+      <geom class="contact" name="chassis_geom" type="box" size="0.038 0.034 0.006" pos="0 0 0" mass="0.25" rgba="0.69 0.78 0.30 0"/>
+      <!-- Body meshes preserve the source assembly orientation around CAD
+           center (120,58,68) mm. Mesh pose compensation is included in pos/quat. -->
+      <geom name="printed_body_lower_geom" type="mesh" mesh="printed_body_lower" pos="0.055748 0.057018 -0.132029" quat="-0.507446 -0.504701 0.492882 -0.494816" mass="0" rgba="0.22 0.44 0.25 1"/>
+      <geom name="printed_body_middle_geom" type="mesh" mesh="printed_body_middle" pos="0.078059 0.066657 -0.106721" quat="-0.444390 -0.441864 0.541340 -0.560557" mass="0" rgba="0.12 0.18 0.16 1"/>
+      <geom name="printed_body_upper_geom" type="mesh" mesh="printed_body_upper" pos="0.062861 0.076575 -0.109195" quat="-0.488958 -0.490970 0.510785 -0.508888" mass="0" rgba="0.40 0.55 0.30 1"/>
       <!-- Central electronics/battery panel visible in the CAD reference. -->
       <geom name="electronics_panel" type="box" pos="0 0 0.008" size="0.030 0.021 0.0025" mass="0.012" rgba="0.12 0.68 0.83 1"/>
       <geom name="electronics_panel_trim" type="box" pos="0 0 0.011" size="0.020 0.014 0.001" mass="0.002" rgba="0.18 0.43 0.73 1"/>
-      <geom name="front_camera_module_geom" type="box" pos="0.070 0 0.015" size="0.014 0.012 0.009" mass="0.008" rgba="0.08 0.08 0.08 1"/>
-      <camera name="front_camera" pos="0.084 0 0.015" xyaxes="0 -1 0 0.342 0 0.940" fovy="75"/>
+      <geom name="front_camera_module_geom" type="box" pos="0.039 0 0.011" size="0.006 0.007 0.004" mass="0.008" rgba="0.08 0.08 0.08 1"/>
+      <camera name="front_camera" pos="0.046 0 0.011" xyaxes="0 -1 0 0.342 0 0.940" fovy="75"/>
 
+      <!-- MuJoCo recenters each STL into its principal inertia frame. The mesh
+           geom poses below compensate for that conversion; keep them paired
+           with these exact supplied assets when editing the assembly. -->
       <!-- Front-left leg: coxa yaw, femur pitch, tibia pitch. -->
-      <body name="front_left_hip" pos="0.048 0.034 0" quat="0.92388 0 0 0.382683">
+      <body name="front_left_hip" pos="0.032 0.027 0" quat="0.92388 0 0 0.382683">
         <joint name="front_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
-        <geom name="front_left_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-        <geom name="front_left_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-        <geom class="contact" name="front_left_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
-        <geom name="front_left_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.030 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <geom name="front_left_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.030 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <body name="front_left_upper" pos="0.030 0 0">
-          <joint name="front_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
-          <geom name="front_left_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-          <geom name="front_left_femur_horn" type="cylinder" pos="0 0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-          <geom class="contact" name="front_left_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 1"/>
-          <geom name="front_left_upper_rail_a" type="capsule" fromto="0 0.009 0 0.035 0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <geom name="front_left_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.035 -0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <body name="front_left_lower" pos="0.035 0 -0.045">
+        <geom name="front_left_printed_coxa" type="mesh" mesh="printed_coxa_front" pos="-0.000920 -0.136663 -0.078163" quat="0.941154 0.028223 0.001731 0.336792" mass="0" rgba="0.83 0.83 0.77 1"/>
+        <geom name="front_left_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+        <geom name="front_left_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+        <geom class="contact" name="front_left_hip_mount" type="capsule" fromto="0 0 0 0.036 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
+        <geom name="front_left_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.036 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <geom name="front_left_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.036 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <body name="front_left_upper" pos="0.036 0 0">
+          <joint name="front_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.5009831567151233 1.05"/>
+          <geom name="front_left_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+          <geom name="front_left_femur_horn" type="cylinder" pos="0 0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+          <geom name="front_left_printed_femur" type="mesh" mesh="printed_femur" pos="-0.128518 -0.005290 0.092098" quat="0.408335 -0.557677 0.000318 -0.149195" mass="0" rgba="0.88 0.87 0.80 1"/>
+          <geom name="front_left_knee_hinge_outer" type="mesh" mesh="printed_hinge" pos="0.165497 -0.160732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom name="front_left_knee_hinge_inner" type="mesh" mesh="printed_hinge" pos="0.165497 -0.176732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom class="contact" name="front_left_upper_geom" type="capsule" fromto="0 0 0 0.030 0 -0.040" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 0"/>
+          <geom name="front_left_upper_rail_a" type="capsule" fromto="0 0.009 0 0.030 0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <geom name="front_left_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.030 -0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <body name="front_left_lower" pos="0.030 0 -0.040">
             <joint name="front_left_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
-            <geom name="front_left_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 1"/>
-            <geom name="front_left_knee_horn" type="cylinder" pos="0 0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-            <geom class="contact" name="front_left_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.0045" mass="0.022" rgba="0.86 0.87 0.83 1"/>
-            <geom name="front_left_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.045 0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom name="front_left_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.045 -0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom class="contact" name="front_left_foot" type="mesh" mesh="pointed_leg_tip" pos="0.045 0 -0.055" euler="0 2.45 0" mass="0.008" rgba="0.82 0.83 0.79 1"/>
+            <geom name="front_left_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 0"/>
+            <geom name="front_left_knee_horn" type="cylinder" pos="0 0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+            <geom name="front_left_printed_tibia_claw" type="mesh" mesh="printed_tibia_front" pos="0.086409 -0.177762 -0.091719" quat="0.905641 -0.069599 -0.263640 0.324752" mass="0" rgba="0.86 0.12 0.13 1"/>
+            <geom class="contact" name="front_left_lower_geom" type="capsule" fromto="0 0 0 0.0593 -0.0021 -0.0991" size="0.001" mass="0.022" rgba="0.86 0.87 0.83 0"/>
+            <geom name="front_left_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.052 0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom name="front_left_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.052 -0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom class="contact" name="front_left_foot" type="sphere" pos="0.0593 -0.0021 -0.0991" size="0.0015" mass="0.008" rgba="0.08 0.08 0.08 0"/>
           </body>
         </body>
       </body>
 
       <!-- Front-right leg. -->
-      <body name="front_right_hip" pos="0.048 -0.034 0" quat="0.92388 0 0 -0.382683">
+      <body name="front_right_hip" pos="0.032 -0.027 0" quat="0.92388 0 0 -0.382683">
         <joint name="front_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
-        <geom name="front_right_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-        <geom name="front_right_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-        <geom class="contact" name="front_right_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
-        <geom name="front_right_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.030 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <geom name="front_right_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.030 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <body name="front_right_upper" pos="0.030 0 0">
-          <joint name="front_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
-          <geom name="front_right_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-          <geom name="front_right_femur_horn" type="cylinder" pos="0 -0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-          <geom class="contact" name="front_right_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 1"/>
-          <geom name="front_right_upper_rail_a" type="capsule" fromto="0 0.009 0 0.035 0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <geom name="front_right_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.035 -0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <body name="front_right_lower" pos="0.035 0 -0.045">
+        <geom name="front_right_printed_coxa" type="mesh" mesh="printed_coxa_front" pos="-0.128663 0.008921 -0.078163" quat="0.903644 0.021180 -0.018733 -0.427350" mass="0" rgba="0.83 0.83 0.77 1"/>
+        <geom name="front_right_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+        <geom name="front_right_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+        <geom class="contact" name="front_right_hip_mount" type="capsule" fromto="0 0 0 0.036 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
+        <geom name="front_right_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.036 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <geom name="front_right_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.036 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <body name="front_right_upper" pos="0.036 0 0">
+          <joint name="front_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.5009831567151233 1.05"/>
+          <geom name="front_right_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+          <geom name="front_right_femur_horn" type="cylinder" pos="0 -0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+          <geom name="front_right_printed_femur" type="mesh" mesh="printed_femur" pos="-0.128518 -0.005290 0.092098" quat="0.408335 -0.557677 0.000318 -0.149195" mass="0" rgba="0.88 0.87 0.80 1"/>
+          <geom name="front_right_knee_hinge_outer" type="mesh" mesh="printed_hinge" pos="0.165497 -0.160732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom name="front_right_knee_hinge_inner" type="mesh" mesh="printed_hinge" pos="0.165497 -0.176732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom class="contact" name="front_right_upper_geom" type="capsule" fromto="0 0 0 0.030 0 -0.040" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 0"/>
+          <geom name="front_right_upper_rail_a" type="capsule" fromto="0 0.009 0 0.030 0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <geom name="front_right_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.030 -0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <body name="front_right_lower" pos="0.030 0 -0.040">
             <joint name="front_right_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
-            <geom name="front_right_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 1"/>
-            <geom name="front_right_knee_horn" type="cylinder" pos="0 -0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-            <geom class="contact" name="front_right_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.0045" mass="0.022" rgba="0.86 0.87 0.83 1"/>
-            <geom name="front_right_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.045 0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom name="front_right_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.045 -0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom class="contact" name="front_right_foot" type="mesh" mesh="pointed_leg_tip" pos="0.045 0 -0.055" euler="0 2.45 0" mass="0.008" rgba="0.82 0.83 0.79 1"/>
+            <geom name="front_right_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 0"/>
+            <geom name="front_right_knee_horn" type="cylinder" pos="0 -0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+            <geom name="front_right_printed_tibia_claw" type="mesh" mesh="printed_tibia_front" pos="0.086409 -0.177762 -0.091719" quat="0.905641 -0.069599 -0.263640 0.324752" mass="0" rgba="0.86 0.12 0.13 1"/>
+            <geom class="contact" name="front_right_lower_geom" type="capsule" fromto="0 0 0 0.0593 -0.0021 -0.0991" size="0.001" mass="0.022" rgba="0.86 0.87 0.83 0"/>
+            <geom name="front_right_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.052 0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom name="front_right_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.052 -0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom class="contact" name="front_right_foot" type="sphere" pos="0.0593 -0.0021 -0.0991" size="0.0015" mass="0.008" rgba="0.08 0.08 0.08 0"/>
           </body>
         </body>
       </body>
 
       <!-- Rear-left leg. -->
-      <body name="rear_left_hip" pos="-0.048 0.034 0" quat="0.382683 0 0 0.92388">
+      <body name="rear_left_hip" pos="-0.032 0.027 0" quat="0.382683 0 0 0.92388">
         <joint name="rear_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
-        <geom name="rear_left_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-        <geom name="rear_left_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-        <geom class="contact" name="rear_left_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
-        <geom name="rear_left_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.030 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <geom name="rear_left_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.030 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <body name="rear_left_upper" pos="0.030 0 0">
-          <joint name="rear_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
-          <geom name="rear_left_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-          <geom name="rear_left_femur_horn" type="cylinder" pos="0 0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-          <geom class="contact" name="rear_left_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 1"/>
-          <geom name="rear_left_upper_rail_a" type="capsule" fromto="0 0.009 0 0.035 0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <geom name="rear_left_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.035 -0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <body name="rear_left_lower" pos="0.035 0 -0.045">
+        <geom name="rear_left_printed_coxa" type="mesh" mesh="printed_coxa_rear" pos="0.183429 -0.014521 -0.074407" quat="-0.336792 -0.001731 -0.028223 -0.941154" mass="0" rgba="0.83 0.83 0.77 1"/>
+        <geom name="rear_left_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+        <geom name="rear_left_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+        <geom class="contact" name="rear_left_hip_mount" type="capsule" fromto="0 0 0 0.036 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
+        <geom name="rear_left_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.036 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <geom name="rear_left_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.036 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <body name="rear_left_upper" pos="0.036 0 0">
+          <joint name="rear_left_hip_pitch" type="hinge" axis="0 1 0" range="-1.5009831567151233 1.05"/>
+          <geom name="rear_left_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+          <geom name="rear_left_femur_horn" type="cylinder" pos="0 0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+          <geom name="rear_left_printed_femur" type="mesh" mesh="printed_femur" pos="-0.128518 -0.005290 0.092098" quat="0.408335 -0.557677 0.000318 -0.149195" mass="0" rgba="0.88 0.87 0.80 1"/>
+          <geom name="rear_left_knee_hinge_outer" type="mesh" mesh="printed_hinge" pos="0.165497 -0.160732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom name="rear_left_knee_hinge_inner" type="mesh" mesh="printed_hinge" pos="0.165497 -0.176732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom class="contact" name="rear_left_upper_geom" type="capsule" fromto="0 0 0 0.030 0 -0.040" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 0"/>
+          <geom name="rear_left_upper_rail_a" type="capsule" fromto="0 0.009 0 0.030 0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <geom name="rear_left_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.030 -0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <body name="rear_left_lower" pos="0.030 0 -0.040">
             <joint name="rear_left_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
-            <geom name="rear_left_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 1"/>
-            <geom name="rear_left_knee_horn" type="cylinder" pos="0 0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-            <geom class="contact" name="rear_left_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.0045" mass="0.022" rgba="0.86 0.87 0.83 1"/>
-            <geom name="rear_left_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.045 0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom name="rear_left_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.045 -0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom class="contact" name="rear_left_foot" type="mesh" mesh="pointed_leg_tip" pos="0.045 0 -0.055" euler="0 2.45 0" mass="0.008" rgba="0.82 0.83 0.79 1"/>
+            <geom name="rear_left_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 0"/>
+            <geom name="rear_left_knee_horn" type="cylinder" pos="0 0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+            <geom name="rear_left_printed_tibia_claw" type="mesh" mesh="printed_tibia_rear" pos="-0.122213 -0.028755 -0.208501" quat="0.911398 0.108475 -0.242991 -0.313913" mass="0" rgba="0.86 0.12 0.13 1"/>
+            <geom class="contact" name="rear_left_lower_geom" type="capsule" fromto="0 0 0 0.0602 -0.0021 -0.0985" size="0.001" mass="0.022" rgba="0.86 0.87 0.83 0"/>
+            <geom name="rear_left_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.052 0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom name="rear_left_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.052 -0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom class="contact" name="rear_left_foot" type="sphere" pos="0.0602 -0.0021 -0.0985" size="0.0015" mass="0.008" rgba="0.08 0.08 0.08 0"/>
           </body>
         </body>
       </body>
 
       <!-- Rear-right leg. -->
-      <body name="rear_right_hip" pos="-0.048 -0.034 0" quat="0.382683 0 0 -0.92388">
+      <body name="rear_right_hip" pos="-0.032 -0.027 0" quat="0.382683 0 0 -0.92388">
         <joint name="rear_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
-        <geom name="rear_right_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-        <geom name="rear_right_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-        <geom class="contact" name="rear_right_hip_mount" type="capsule" fromto="0 0 0 0.030 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
-        <geom name="rear_right_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.030 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <geom name="rear_right_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.030 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
-        <body name="rear_right_upper" pos="0.030 0 0">
-          <joint name="rear_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.05 1.05"/>
-          <geom name="rear_right_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 1"/>
-          <geom name="rear_right_femur_horn" type="cylinder" pos="0 -0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-          <geom class="contact" name="rear_right_upper_geom" type="capsule" fromto="0 0 0 0.035 0 -0.045" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 1"/>
-          <geom name="rear_right_upper_rail_a" type="capsule" fromto="0 0.009 0 0.035 0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <geom name="rear_right_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.035 -0.009 -0.045" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
-          <body name="rear_right_lower" pos="0.035 0 -0.045">
+        <geom name="rear_right_printed_coxa" type="mesh" mesh="printed_coxa_rear" pos="0.022520 0.175429 -0.074407" quat="0.427350 0.018733 -0.021180 -0.903644" mass="0" rgba="0.83 0.83 0.77 1"/>
+        <geom name="rear_right_coxa_servo" type="box" pos="0.008 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+        <geom name="rear_right_coxa_horn" type="cylinder" pos="0.008 0 0.007" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+        <geom class="contact" name="rear_right_hip_mount" type="capsule" fromto="0 0 0 0.036 0 0" size="0.007" mass="0.018" rgba="0.84 0.85 0.81 1"/>
+        <geom name="rear_right_coxa_bracket_outer" type="capsule" fromto="0 0.009 0 0.036 0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <geom name="rear_right_coxa_bracket_inner" type="capsule" fromto="0 -0.009 0 0.036 -0.009 0" size="0.0035" mass="0.002" rgba="0.92 0.92 0.88 1"/>
+        <body name="rear_right_upper" pos="0.036 0 0">
+          <joint name="rear_right_hip_pitch" type="hinge" axis="0 1 0" range="-1.5009831567151233 1.05"/>
+          <geom name="rear_right_femur_servo" type="box" pos="0.006 0 0.002" size="0.006 0.004 0.0045" mass="0.015" rgba="0.10 0.34 0.86 0"/>
+          <geom name="rear_right_femur_horn" type="cylinder" pos="0 -0.007 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+          <geom name="rear_right_printed_femur" type="mesh" mesh="printed_femur" pos="-0.128518 -0.005290 0.092098" quat="0.408335 -0.557677 0.000318 -0.149195" mass="0" rgba="0.88 0.87 0.80 1"/>
+          <geom name="rear_right_knee_hinge_outer" type="mesh" mesh="printed_hinge" pos="0.165497 -0.160732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom name="rear_right_knee_hinge_inner" type="mesh" mesh="printed_hinge" pos="0.165497 -0.176732 -0.027243" quat="0.532798 -0.149173 0.008756 0.440224" mass="0" rgba="0.88 0.87 0.81 1"/>
+          <geom class="contact" name="rear_right_upper_geom" type="capsule" fromto="0 0 0 0.030 0 -0.040" size="0.0075" mass="0.030" rgba="0.86 0.87 0.83 0"/>
+          <geom name="rear_right_upper_rail_a" type="capsule" fromto="0 0.009 0 0.030 0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <geom name="rear_right_upper_rail_b" type="capsule" fromto="0 -0.009 0 0.030 -0.009 -0.040" size="0.0035" mass="0.003" rgba="0.96 0.96 0.92 1"/>
+          <body name="rear_right_lower" pos="0.030 0 -0.040">
             <joint name="rear_right_knee_pitch" type="hinge" axis="0 1 0" range="-1.60 1.60"/>
-            <geom name="rear_right_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 1"/>
-            <geom name="rear_right_knee_horn" type="cylinder" pos="0 -0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 1"/>
-            <geom class="contact" name="rear_right_lower_geom" type="capsule" fromto="0 0 0 0.045 0 -0.055" size="0.0045" mass="0.022" rgba="0.86 0.87 0.83 1"/>
-            <geom name="rear_right_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.045 0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom name="rear_right_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.045 -0.0065 -0.055" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
-            <geom class="contact" name="rear_right_foot" type="mesh" mesh="pointed_leg_tip" pos="0.045 0 -0.055" euler="0 2.45 0" mass="0.008" rgba="0.82 0.83 0.79 1"/>
+            <geom name="rear_right_knee_servo" type="box" pos="0.006 0 0.002" size="0.0055 0.004 0.0045" mass="0.014" rgba="0.10 0.34 0.86 0"/>
+            <geom name="rear_right_knee_horn" type="cylinder" pos="0 -0.006 0" euler="1.5708 0 0" size="0.0035 0.0008" mass="0.001" rgba="0.67 0.28 0.75 0"/>
+            <geom name="rear_right_printed_tibia_claw" type="mesh" mesh="printed_tibia_rear" pos="-0.122213 -0.028755 -0.208501" quat="0.911398 0.108475 -0.242991 -0.313913" mass="0" rgba="0.86 0.12 0.13 1"/>
+            <geom class="contact" name="rear_right_lower_geom" type="capsule" fromto="0 0 0 0.0602 -0.0021 -0.0985" size="0.001" mass="0.022" rgba="0.86 0.87 0.83 0"/>
+            <geom name="rear_right_lower_rail_a" type="capsule" fromto="0 0.0065 0 0.052 0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom name="rear_right_lower_rail_b" type="capsule" fromto="0 -0.0065 0 0.052 -0.0065 -0.086" size="0.002" mass="0.002" rgba="0.96 0.96 0.92 1"/>
+            <geom class="contact" name="rear_right_foot" type="sphere" pos="0.0602 -0.0021 -0.0985" size="0.0015" mass="0.008" rgba="0.08 0.08 0.08 0"/>
           </body>
         </body>
       </body>
@@ -161,16 +195,16 @@
 
   <actuator>
     <position name="front_left_hip_abduction_motor" joint="front_left_hip_abduction"/>
-    <position name="front_left_hip_pitch_motor" joint="front_left_hip_pitch"/>
+    <position name="front_left_hip_pitch_motor" joint="front_left_hip_pitch" ctrlrange="-1.5009831567151233 1.05"/>
     <position name="front_left_knee_pitch_motor" joint="front_left_knee_pitch"/>
     <position name="front_right_hip_abduction_motor" joint="front_right_hip_abduction"/>
-    <position name="front_right_hip_pitch_motor" joint="front_right_hip_pitch"/>
+    <position name="front_right_hip_pitch_motor" joint="front_right_hip_pitch" ctrlrange="-1.5009831567151233 1.05"/>
     <position name="front_right_knee_pitch_motor" joint="front_right_knee_pitch"/>
     <position name="rear_left_hip_abduction_motor" joint="rear_left_hip_abduction"/>
-    <position name="rear_left_hip_pitch_motor" joint="rear_left_hip_pitch"/>
+    <position name="rear_left_hip_pitch_motor" joint="rear_left_hip_pitch" ctrlrange="-1.5009831567151233 1.05"/>
     <position name="rear_left_knee_pitch_motor" joint="rear_left_knee_pitch"/>
     <position name="rear_right_hip_abduction_motor" joint="rear_right_hip_abduction"/>
-    <position name="rear_right_hip_pitch_motor" joint="rear_right_hip_pitch"/>
+    <position name="rear_right_hip_pitch_motor" joint="rear_right_hip_pitch" ctrlrange="-1.5009831567151233 1.05"/>
     <position name="rear_right_knee_pitch_motor" joint="rear_right_knee_pitch"/>
   </actuator>
 </mujoco>
