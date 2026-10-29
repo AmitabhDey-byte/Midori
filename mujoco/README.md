@@ -13,7 +13,7 @@ uv sync
 uv run python mujoco/control_test.py
 ```
 
-The program opens a MuJoCo viewer and a separate control window. Close either window to end the session. Each run creates a CSV log under `mujoco/logs/`.
+The program opens a MuJoCo viewer and a separate control window. Physics advances at the model's 2 ms timestep against a wall-clock accumulator, with multiple physics steps between viewer refreshes, so one simulation second is approximately one real second when the computer keeps up. Close either window to end the session. Dataset files are created only when you start an episode in the control window; see [Recording dataset episodes](#recording-dataset-episodes).
 
 ## Front camera
 
@@ -45,34 +45,49 @@ This is a virtual simulation camera. A physical camera module, its connection to
 
 The Drive panel uses hold-to-move controls:
 
-- Hold Forward or Backward to move; release the button to stop the gait.
-- Hold Turn Left or Turn Right to rotate; release the button to stop turning.
+- Hold Forward or Backward to move; release the button to stop the gait and return to the joint pose you set with the sliders.
+- Hold Turn Left or Turn Right to rotate; release the button to stop turning and hold that same manual pose.
 - The arrow keys and WASD do the same while the Tkinter control window has keyboard focus. Releasing the key stops that motion.
-- Stop ends the gait and holds the current slider targets.
-- Stop and return to standing pose stops the gait and sets the joint targets to the model's standing pose.
+- Stop ends the gait and returns to the manual slider pose captured when movement began.
+- Stop and return to standing pose explicitly sets all joint targets to the model's default standing pose.
 
 The standing pose splays the femurs away from the chassis and points the tibias down to the floor, giving the robot a low, crab-like stance. The default viewer camera is set to show the legs from above and from one side.
 
-The gait is a quicker continuous crawl sequence. It assigns a different phase to each leg so only one foot lifts at a time while the other three support the body. Forward/backward use a 50 mm stance/swing path; turns use a wider 90 mm arc to make yaw changes visible. Foot lift is about 22 mm and the nominal cycle is 1.05 Hz. Inverse kinematics converts foot targets to coxa, femur, and tibia angles. Direction buttons and keys keep hold-to-move behavior: pressing starts the selected gait, and releasing returns control to the standing pose. Left and right use opposite stance sweeps. Servo housings, horn discs, and decorative bracket rails are visual-only geoms with contact disabled; the frame, primary links, feet, and floor provide the physical contacts.
+Gravity is `-9.81 m/s²` and is active in every mode. `Optional virtual pose stabilization` is off by default. If enabled, it applies an external spring-damper wrench to the chassis while stopped and therefore overrides natural falling; leave it off for real-time gravity/contact behavior and for dataset episodes that should represent unassisted physics. It is not a physical actuator or hardware balance controller.
+
+The gait is a continuous, one-foot-at-a-time four-beat crawl based on the supplied Arduino reference. It assigns a quarter-cycle offset to each leg and interpolates the chassis target toward the nominal triangle formed by the supporting feet. Each swing moves its foot forward and up; each stance sweeps it backward against the floor. The trajectories use quintic easing to avoid abrupt reversals. Forward, backward, and turn commands use a 40 mm stance/swing path. The nominal swing lift is 30 mm over a 2 mm stance preload (28 mm net lift), and the cycle is 0.85 Hz. When movement starts from the deeply crouched slider pose shown in the shared screenshot, the joints first ease over 1.2 seconds into a walk-ready stance (femur -45°, tibia +65°). That gives the IK room to lift and plant each claw without commanding beyond the joint stops. Releasing the direction eases back to the manual slider pose. The gait clock resets on a new direction so movement starts from a predictable foot phase. Left and right use opposite stance sweeps. Episode metadata records gait and actuator settings, including the transition stance, so new data can be distinguished from older recordings. Printed STL meshes are visual-only; hidden toe spheres are positioned at the actual pointed claw tips, with narrower tibia collision capsules so the tips contact the floor first.
+
+The virtual position servos use a 0.45 Nm torque limit for clearer joint motion in simulation. This is a visual-control setting, not a measured SG90 torque model; replace it with measured servo torque, speed, and load before treating the simulation as hardware-calibrated.
+
+### Video movement reference
+
+The gait and stance were compared with the [Spider Robot v3.0 demo](https://youtu.be/5hAmD499sJs). The visible robot has a low central body, legs spread outward, and narrow pointed feet. Its leg movement is a crawl with individual feet lifting and returning to the floor, rather than a wheeled or holonomic glide. The original demonstration uses finite step sequences, while Midori keeps the requested hold-to-move control: it continues while a direction is held and stops on release.
 
 This remains an initial simulator gait, not a calibrated physical-robot controller. The model uses estimated dimensions and contact properties. It can still slide, tip, or walk imperfectly; tune it against the exact printed frame before transferring commands to hardware. Use the sliders for individual joint inspection.
 
-## Automatic motion tracking
+## Recording dataset episodes
 
-The controller records at most 10 rows per real-time second. Sampling uses a wall clock, so speeding up the MuJoCo viewer does not increase the recording rate. Each CSV contains up to 5,000 data rows; longer runs automatically continue in the next numbered CSV part. For example: `mujoco/logs/motion_20261026_120000_123456_part001.csv`.
+The controller records only when an episode is started from the `Dataset episode capture` panel. Select a task, select the result at the end, press `Start episode`, demonstrate the task with the hold-to-move controls, then press `End episode and save`. Use one episode for one short task attempt; for example, select `walk_forward`, record a short forward command and release, then mark its outcome.
 
-Each CSV contains:
+Each episode is saved to its own folder:
 
-- A local recording timestamp for each sample.
-- Simulation time and active movement mode.
-- Chassis position in metres and orientation as a quaternion.
-- Chassis linear and angular velocity.
-- Target angle, simulated joint angle, and simulated joint velocity for each of the 12 joints.
-- World-space XYZ position of each foot.
+```text
+mujoco/logs/episodes/sim_<timestamp>/
+  episode.json
+  state_action.csv
+```
 
-The `target_*` columns are commands sent to the simulator. The `actual_*` columns are the MuJoCo simulated joint positions. These are not physical servo encoder readings. When the ESP32 link is implemented, real servo telemetry and timestamps should be added as separate fields so simulated commands can be compared with measured hardware motion.
+Rows are sampled every 0.02 simulation seconds (50 Hz nominal), rather than every fixed wall-clock interval. A 10-second simulation episode is about 500 rows. `episode.json` stores the task, simulation source, schema version, simulation timestep, outcome, duration, and timestamped command press/release events. If the app closes during recording, the episode is finalized with outcome `interrupted`.
 
-Logs are written and flushed while the simulation is running, so a normally closed run leaves a readable CSV file. The `logs/` folder is ignored by Git to avoid committing large run histories.
+`state_action.csv` stores episode and step IDs; episode/simulation timestamps; movement mode; whether virtual balance assist is active; body position, quaternion, linear and angular velocity; target and simulated actual angle/velocity for all 12 joints; world-space foot XYZ; and a per-foot floor-contact flag. Episode metadata records whether manual-pose balance assist was enabled and command events record changes to it. The `target_*` columns are commands sent to MuJoCo. The `actual_*` columns are simulated joint positions, not physical servo encoder readings. Every episode is marked `mujoco_simulation`; do not mix these values with hardware data without a separate `source` label.
+
+The `logs/` folder is ignored by Git so run data is not accidentally committed. Back up episodes you want to keep in the dataset directory before cleaning or regenerating logs.
+
+### First pilot collection
+
+Start with five short episodes for each of `stand_balance`, `walk_forward`, `walk_backward`, `turn_left`, and `turn_right` (25 episodes total). Keep each attempt around 5–10 simulated seconds. Select one task before recording, start the episode, issue only that task with the hold controls, release to stop, select the correct outcome, and save. Use `mixed_command_sequence` only after the single-command episodes look correct. Do not discard a fall or bad turn; mark its outcome so it can be filtered or studied later.
+
+Inspect a few CSVs before collecting more: episode time should increase in 0.02-second steps, command events should align with the intended controls, target and actual angles should differ only when the simulated joint lags, and foot-contact flags should change as feet lift and land. At 50 Hz, five seconds gives about 250 rows. The first pilot validates recording and labels; it is not yet enough to claim a robust trained policy.
 
 ## Current model
 
@@ -84,13 +99,15 @@ Logs are written and flushed while the simulation is running, so a normally clos
 | `*_hip_pitch` | Femur pitch |
 | `*_knee_pitch` | Tibia/knee pitch |
 
-The model uses gravity, contact with a ground plane, and position actuators for the 12 joints. The visible geometry has been revised using the supplied CAD screenshot as a visual reference: a rectangular center frame with a raised perimeter, a blue electronics panel, compact inset servo details, small horn discs, and light printed-style brackets and link rails. The lower links taper visually and end in small pointed tips; there are no spherical wheel-like feet. Servo cases, horns, and decorative rails are visual-only so they do not collide with and jam the moving links. The frame, primary links, pointed tips, and floor provide the physical contacts.
+The model uses gravity, a ground plane, and position actuators for the 12 joints. The supplied STLs are copied into `mujoco/assets/` and used for the layered body, coxa brackets, femur links, hinge brackets, and long pointed tibia/claws. The four coxa meshes sit on the yaw links, the femur meshes follow hip pitch, and the red tibia meshes follow the knee joints. The displayed body and leg contours now come from the provided parts instead of generic wheel-like or capsule-only visuals. A compact collision core and limb proxies retain stable contact behavior; the decorative STL meshes do not collide.
 
-The screenshot is a perspective image rather than a dimensioned CAD export. The XML therefore remains a visual/mechanical approximation: the original STL meshes, exact servo models, pivot coordinates, frame dimensions, link lengths, masses, center of mass, and joint stops have not been recovered from the image. The control-facing joint and actuator names remain unchanged. Do not interpret the visual update as measured mechanical calibration.
+The mesh dimensions are now available from the files, but their final pivots, servo neutral positions, masses, center of mass, joint stops, and collision hulls are still estimates. Mesh orientations and mount offsets are approximated from the supplied assembly photo and the shared CAD coordinate frame. Do not treat this visual update as measured servo calibration.
+
+All four femur-pitch joints now allow a simulator minimum of -86° (with the prior +60° upper limit). Their position actuators use the same range so the slider can reach that endpoint. This is a simulation setting; verify the printed bracket and servo hard stop before copying it to the physical robot.
 
 ### Assumptions that still need measurements
 
-The product is a printed-parts kit sold without servos. The seller identifies two versions for different servo-horn sizes. The exact servo model, STL dimensions, mass, and calibrated joint ranges are not specified in the model. The current approximate values include a 130 mm by 90 mm chassis footprint, a 30 mm coxa, approximately 57 mm femur, and approximately 71 mm tibia. These are modeling placeholders, not verified product specifications.
+The product is a printed-parts kit sold without servos. The seller identifies two versions for different servo-horn sizes. The provided STL bounds are about 84 by 76 mm for the body plates, 38 by 39 mm for the coxa parts, about 50 mm for the femur, and 100 mm long for each pointed tibia. The kinematic pivot-to-pivot distances are not identical to part bounding-box lengths and still need measurement. Servo model, mass, and calibrated joint ranges are not specified.
 
 Before treating the simulation as a twin, measure the actual frame and record:
 
@@ -117,14 +134,14 @@ These are plans, not implemented features. There is currently no multimodal mode
 
 ## Current simulator preview
 
-The screenshot below shows the CAD-inspired model in its standing pose. Blue insets represent approximate servo locations, the small purple discs represent approximate horns, and the pale link rails represent the printed brackets/links. The narrow, light-colored tips replace the earlier round feet. Colors and shapes are visual aids, not verified surface geometry.
+The screenshot below shows the updated STL-based model in its standing pose. It uses the supplied body frames and articulated printed leg shapes with pointed red claw meshes. Simplified hidden collision proxies remain for simulation stability.
 
-![Earlier MuJoCo prototype screenshot](screenshot.png)
+![STL-based MuJoCo spider model](screenshot.png)
 
 ## Suggested next simulator work
 
-1. Replace the placeholder links with measured dimensions or meshes from the exact printed-parts version.
+1. Measure servo pivot-to-pivot distances and refine the STL mount transforms.
 2. Calibrate each simulated joint's zero direction and range against the assembled robot.
-3. Tune or replace the initial gait with foot-space inverse kinematics and measured servo timing.
+3. Refine the collision hulls and test floor contact with the measured assembled mass.
 4. Compare each motion log with real ESP32 telemetry after that interface exists.
 5. Define repeatable simulation and hardware evaluation tasks before using reinforcement learning.
