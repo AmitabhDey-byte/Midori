@@ -1,19 +1,5 @@
 <mujoco model="Midori_12_servo_prototype">
-  <!--
-    MIDORI - 12-SERVO PROTOTYPE MODEL
-    Assumption: 3 independently actuated revolute joints per leg:
-      1) hip abduction/adduction (axis X)
-      2) hip pitch (axis Y)
-      3) knee pitch (axis Y)
 
-    This is a kinematic/physics prototype, NOT yet an exact digital twin of
-    the Printed Bots kit. Dimensions, servo mount orientation, joint axes,
-    limits, mass, and actuator strength are provisional until checked against
-    the product's assembly photos/CAD/manual.
-
-    Coordinate convention: X = front/back, Y = left/right, Z = up.
-    Lengths in metres; joint angles in radians.
-  -->
   <compiler angle="radian"/>
 
   <option integrator="implicitfast"/>

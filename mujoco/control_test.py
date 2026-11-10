@@ -1,13 +1,10 @@
-"""MuJoCo controller for the 12-servo spider prototype.
+"""MuJoCo controls and viewer for the Midori quadruped."""
 
-Run from the repository root with: uv run python mujoco/control_test.py
-Use the episode-capture panel to save labeled demonstrations at 50 Hz simulation time.
-"""
-import csv
-import json
 import math
+import sys
 import tkinter as tk
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from tkinter import ttk
@@ -15,408 +12,36 @@ from tkinter import ttk
 import mujoco
 import mujoco.viewer
 
+from episode_recorder import EpisodeRecorder
+from gait import (
+    DATASET_SAMPLE_PERIOD_SECONDS,
+    JOINTS,
+    LEG_INFO,
+    ROOT_STAND_HEIGHT,
+    REST_FEMUR_ANGLE,
+    REST_TIBIA_ANGLE,
+    STANCE_RELEASE_RATE_MPS,
+    STANCE_SEARCH_MAX_METRES,
+    STANCE_SEARCH_RATE_MPS,
+    WALK_GAIT_BLEND_SECONDS,
+    WALK_STANCE_FEMUR_ANGLE,
+    WALK_STANCE_TIBIA_ANGLE,
+    WALK_STANCE_TRANSITION_SECONDS,
+    crawl_swinging_legs,
+    crawl_targets,
+    foot_contact_flags,
+    smoothstep01,
+)
+
 HERE = Path(__file__).resolve().parent
 MODEL_PATH = HERE / "hello.xml"
 LOG_DIR = HERE / "logs"
-DATASET_SAMPLE_PERIOD_SECONDS = 0.02  # 50 Hz in simulation time
-GAIT_FREQUENCY_HZ = 0.85
-STRIDE_METRES = 0.040
-TURN_STRIDE_METRES = 0.040
-SWING_FRACTION = 0.25
-FOOT_LIFT_METRES = 0.030
-STANCE_PRELOAD_METRES = 0.002
-SUPPORT_SHIFT_FRACTION = 0.70
-STANCE_SEARCH_RATE_MPS = 0.040
-STANCE_SEARCH_MAX_METRES = 0.008
-STANCE_RELEASE_RATE_MPS = 0.080
-GAIT_CONTROLLER_VERSION = "stance_transition_sequential_crawl_v3"
-WALK_STANCE_FEMUR_ANGLE = math.radians(-45.0)
-WALK_STANCE_TIBIA_ANGLE = math.radians(65.0)
-WALK_STANCE_TRANSITION_SECONDS = 1.2
-WALK_GAIT_BLEND_SECONDS = 0.35
-SIM_SERVO_KP = 10.0
-SIM_SERVO_KV = 0.5
-SIM_SERVO_TORQUE_LIMIT_NM = 0.45
 BALANCE_POSITION_KP = (220.0, 220.0, 420.0)
 BALANCE_POSITION_KD = (28.0, 28.0, 38.0)
 BALANCE_ROTATION_KP = 5.0
 BALANCE_ROTATION_KD = 0.9
 BALANCE_FORCE_LIMIT_NEWTONS = 18.0
 BALANCE_TORQUE_LIMIT_NM = 2.5
-
-JOINTS = [
-    ("Front left coxa yaw", "front_left_hip_abduction"),
-    ("Front left femur pitch", "front_left_hip_pitch"),
-    ("Front left tibia pitch", "front_left_knee_pitch"),
-    ("Front right coxa yaw", "front_right_hip_abduction"),
-    ("Front right femur pitch", "front_right_hip_pitch"),
-    ("Front right tibia pitch", "front_right_knee_pitch"),
-    ("Rear left coxa yaw", "rear_left_hip_abduction"),
-    ("Rear left femur pitch", "rear_left_hip_pitch"),
-    ("Rear left tibia pitch", "rear_left_knee_pitch"),
-    ("Rear right coxa yaw", "rear_right_hip_abduction"),
-    ("Rear right femur pitch", "rear_right_hip_pitch"),
-    ("Rear right tibia pitch", "rear_right_knee_pitch"),
-]
-
-# Leg angle is the direction the coxa points in the chassis XY plane. The
-# quarter-cycle offsets produce a crawl sequence with one leg swinging at a time.
-LEG_INFO = {
-    "front_left": (0.032, 0.027, math.pi / 4, 0.00),
-    "front_right": (0.032, -0.027, -math.pi / 4, 0.50),
-    "rear_left": (-0.032, 0.027, 3 * math.pi / 4, 0.25),
-    "rear_right": (-0.032, -0.027, -3 * math.pi / 4, 0.75),
-}
-
-# Geometry from hello.xml. The rest pose is a modestly bent, four-foot stance.
-COXA_LENGTH = 0.036
-FEMUR_VECTOR = (0.030, 0.040)  # 50 mm printed femur, projected into the leg plane
-TIBIA_VECTOR = (0.05975, 0.0988)  # Mean measured STL toe tip from the knee pivot
-FEMUR_LENGTH = math.hypot(*FEMUR_VECTOR)
-TIBIA_LENGTH = math.hypot(*TIBIA_VECTOR)
-FEMUR_BASE_ANGLE = math.atan2(FEMUR_VECTOR[0], FEMUR_VECTOR[1])
-TIBIA_BASE_ANGLE = math.atan2(TIBIA_VECTOR[0], TIBIA_VECTOR[1])
-REST_FEMUR_ANGLE = -0.55
-REST_TIBIA_ANGLE = 1.10
-FOOT_RADIUS = 0.0015  # Small contact proxy aligned to each printed claw tip.
-
-
-def leg_foot_geometry(femur_angle, tibia_angle):
-    """Return radial reach and downward reach for a leg's current pitch angles."""
-    total_femur_angle = femur_angle
-    total_tibia_angle = femur_angle + tibia_angle
-    femur_x = FEMUR_VECTOR[0] * math.cos(total_femur_angle) - FEMUR_VECTOR[1] * math.sin(total_femur_angle)
-    femur_down = FEMUR_VECTOR[0] * math.sin(total_femur_angle) + FEMUR_VECTOR[1] * math.cos(total_femur_angle)
-    tibia_x = TIBIA_VECTOR[0] * math.cos(total_tibia_angle) - TIBIA_VECTOR[1] * math.sin(total_tibia_angle)
-    tibia_down = TIBIA_VECTOR[0] * math.sin(total_tibia_angle) + TIBIA_VECTOR[1] * math.cos(total_tibia_angle)
-    return COXA_LENGTH + femur_x + tibia_x, femur_down + tibia_down
-
-
-def rest_foot_geometry():
-    """Return radial and downward reach for the default standing pose."""
-    return leg_foot_geometry(REST_FEMUR_ANGLE, REST_TIBIA_ANGLE)
-
-
-def smoothstep01(value):
-    """Quintic easing with zero velocity and acceleration at both endpoints."""
-    value = max(0.0, min(1.0, value))
-    return value * value * value * (value * (value * 6.0 - 15.0) + 10.0)
-
-
-REST_RADIAL_REACH, REST_FOOT_DROP = rest_foot_geometry()
-ROOT_STAND_HEIGHT = REST_FOOT_DROP + FOOT_RADIUS
-
-
-class EpisodeRecorder:
-    """Write one simulation-time CSV and metadata file per labeled episode."""
-
-    def __init__(self, joint_names, leg_names):
-        self.joint_names = joint_names
-        self.leg_names = leg_names
-        self.active = False
-        self.row_count = 0
-        self.episode_dir = None
-        self.file = None
-        self.writer = None
-        self.metadata = None
-        self.start_sim_time = None
-
-    def start(self, task, sim_time, model, balance_assist_enabled):
-        if self.active:
-            raise RuntimeError("An episode is already being recorded")
-        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        self.episode_id = f"sim_{stamp}"
-        self.episode_dir = LOG_DIR / "episodes" / self.episode_id
-        self.episode_dir.mkdir(parents=True, exist_ok=False)
-        self.start_sim_time = sim_time
-        self.row_count = 0
-        self.file = (self.episode_dir / "state_action.csv").open(
-            "w", newline="", encoding="utf-8"
-        )
-        columns = [
-            "episode_id", "step_index", "episode_time_s", "sim_time_s",
-            "recorded_at_local", "movement_mode", "balance_assist_active",
-            "root_x_m", "root_y_m", "root_z_m",
-            "root_quat_w", "root_quat_x", "root_quat_y", "root_quat_z",
-            "root_vx_mps", "root_vy_mps", "root_vz_mps",
-            "root_wx_radps", "root_wy_radps", "root_wz_radps",
-        ]
-        columns += [f"target_{name}_deg" for name in self.joint_names]
-        columns += [f"actual_{name}_deg" for name in self.joint_names]
-        columns += [f"actual_{name}_vel_degps" for name in self.joint_names]
-        columns += [
-            f"foot_{leg}_{axis}_m"
-            for leg in self.leg_names for axis in ("x", "y", "z")
-        ]
-        columns += [f"foot_{leg}_contact" for leg in self.leg_names]
-        self.writer = csv.DictWriter(self.file, fieldnames=columns)
-        self.writer.writeheader()
-        self.metadata = {
-            "schema_version": 2,
-            "episode_id": self.episode_id,
-            "task": task,
-            "source": "mujoco_simulation",
-            "hardware_feedback": False,
-            "status": "recording",
-            "started_at_local": datetime.now().astimezone().isoformat(timespec="milliseconds"),
-            "start_sim_time_s": sim_time,
-            "simulation_timestep_s": float(model.opt.timestep),
-            "sample_period_sim_s": DATASET_SAMPLE_PERIOD_SECONDS,
-            "nominal_sample_rate_hz": 1.0 / DATASET_SAMPLE_PERIOD_SECONDS,
-            "simulation_seed": None,
-            "environment_randomization": "none",
-            "manual_pose_balance_assist_enabled": bool(balance_assist_enabled),
-            "gravity_mps2": [float(value) for value in model.opt.gravity],
-            "model_file": "mujoco/hello.xml",
-            "controller_file": "mujoco/control_test.py",
-            "gait_controller_version": GAIT_CONTROLLER_VERSION,
-            "gait_parameters": {
-                "cycle_frequency_hz": GAIT_FREQUENCY_HZ,
-                "forward_stride_m": STRIDE_METRES,
-                "turn_stride_m": TURN_STRIDE_METRES,
-                "walk_stance_femur_deg": math.degrees(WALK_STANCE_FEMUR_ANGLE),
-                "walk_stance_tibia_deg": math.degrees(WALK_STANCE_TIBIA_ANGLE),
-                "walk_stance_transition_s": WALK_STANCE_TRANSITION_SECONDS,
-                "walk_gait_blend_s": WALK_GAIT_BLEND_SECONDS,
-                "swing_fraction": SWING_FRACTION,
-                "foot_lift_m": FOOT_LIFT_METRES,
-                "stance_preload_m": STANCE_PRELOAD_METRES,
-                "support_shift_fraction": SUPPORT_SHIFT_FRACTION,
-                "stance_search_rate_mps": STANCE_SEARCH_RATE_MPS,
-                "stance_search_max_m": STANCE_SEARCH_MAX_METRES,
-                "foot_trajectory": "quintic_eased_swing_and_stance",
-            },
-            "simulated_servo_parameters": {
-                "position_kp": SIM_SERVO_KP,
-                "position_kv": SIM_SERVO_KV,
-                "torque_limit_nm": SIM_SERVO_TORQUE_LIMIT_NM,
-                "hardware_calibrated": False,
-            },
-            "joint_order": self.joint_names,
-            "coordinate_frame": "X forward, Y left, Z up; world frame",
-            "outcome": None,
-            "command_events": [],
-        }
-        self._write_metadata()
-        self.active = True
-        return self.episode_id
-
-    def add_command_event(self, sim_time, event, mode):
-        if self.active:
-            self.metadata["command_events"].append({
-                "sim_time_s": float(sim_time),
-                "episode_time_s": float(sim_time - self.start_sim_time),
-                "event": event,
-                "movement_mode": mode,
-            })
-
-    def write(self, row):
-        if self.active:
-            row["episode_id"] = self.episode_id
-            row["step_index"] = self.row_count
-            row["episode_time_s"] = row["sim_time_s"] - self.start_sim_time
-            self.writer.writerow(row)
-            self.file.flush()
-            self.row_count += 1
-
-    def _write_metadata(self):
-        path = self.episode_dir / "episode.json"
-        path.write_text(json.dumps(self.metadata, indent=2), encoding="utf-8")
-
-    def finish(self, sim_time, outcome="incomplete"):
-        if not self.active:
-            return None
-        self.metadata.update({
-            "status": "incomplete" if outcome in ("incomplete", "interrupted") else "complete",
-            "ended_at_local": datetime.now().astimezone().isoformat(timespec="milliseconds"),
-            "end_sim_time_s": sim_time,
-            "duration_sim_s": sim_time - self.start_sim_time,
-            "row_count": self.row_count,
-            "outcome": outcome,
-        })
-        self.file.close()
-        self.file = None
-        self._write_metadata()
-        episode_dir = self.episode_dir
-        self.active = False
-        return episode_dir
-
-
-def inverse_kinematics(x_from_coxa, y_from_coxa, foot_down):
-    """Solve coxa yaw and two pitch angles for a foot point in a leg's frame."""
-    coxa_yaw = math.atan2(y_from_coxa, x_from_coxa)
-    radial_distance = math.hypot(x_from_coxa, y_from_coxa)
-    planar_x = radial_distance - COXA_LENGTH
-    distance = math.hypot(planar_x, foot_down)
-
-    minimum_reach = abs(FEMUR_LENGTH - TIBIA_LENGTH) + 1e-5
-    maximum_reach = FEMUR_LENGTH + TIBIA_LENGTH - 1e-5
-    distance = min(max(distance, minimum_reach), maximum_reach)
-
-    cos_delta = (
-        distance * distance - FEMUR_LENGTH * FEMUR_LENGTH - TIBIA_LENGTH * TIBIA_LENGTH
-    ) / (2 * FEMUR_LENGTH * TIBIA_LENGTH)
-    # Choose the folded-knee branch: femur reaches outward and tibia points
-    # back down toward the floor, which gives the splayed spider stance.
-    delta = -math.acos(max(-1.0, min(1.0, cos_delta)))
-    target_angle = math.atan2(planar_x, foot_down)
-    inner_angle = math.atan2(
-        TIBIA_LENGTH * math.sin(delta),
-        FEMUR_LENGTH + TIBIA_LENGTH * math.cos(delta),
-    )
-    femur_angle = FEMUR_BASE_ANGLE - (target_angle - inner_angle)
-    tibia_angle = (TIBIA_BASE_ANGLE - FEMUR_BASE_ANGLE) - delta
-    return coxa_yaw, femur_angle, tibia_angle
-
-
-def crawl_support_compensation(cycle, base_pose):
-    """Shift the body target toward each three-foot support triangle smoothly."""
-    legs = []
-    for leg_name, (hip_x, hip_y, heading, phase_offset) in LEG_INFO.items():
-        base_yaw = (base_pose or {}).get(f"{leg_name}_hip_abduction", 0.0)
-        base_femur = (base_pose or {}).get(f"{leg_name}_hip_pitch", REST_FEMUR_ANGLE)
-        base_tibia = (base_pose or {}).get(f"{leg_name}_knee_pitch", REST_TIBIA_ANGLE)
-        reach, _ = leg_foot_geometry(base_femur, base_tibia)
-        world_heading = heading + base_yaw
-        nominal_foot = (
-            hip_x + reach * math.cos(world_heading),
-            hip_y + reach * math.sin(world_heading),
-        )
-        legs.append((leg_name, nominal_foot, phase_offset))
-
-    legs.sort(key=lambda item: (item[2] + SWING_FRACTION / 2.0) % 1.0)
-    supports = {}
-    for leg_name, _, _ in legs:
-        points = [point for other_name, point, _ in legs if other_name != leg_name]
-        supports[leg_name] = (
-            sum(point[0] for point in points) / len(points),
-            sum(point[1] for point in points) / len(points),
-        )
-
-    centers = [((offset + SWING_FRACTION / 2.0) % 1.0, name) for name, _, offset in legs]
-    centers.sort()
-    phase = cycle % 1.0
-    for index, (left_center, left_leg) in enumerate(centers):
-        next_center, next_leg = centers[(index + 1) % len(centers)]
-        phase_value = phase
-        if index == len(centers) - 1:
-            next_center += 1.0
-            if phase_value < left_center:
-                phase_value += 1.0
-        elif phase_value < left_center:
-            continue
-        if left_center <= phase_value <= next_center:
-            blend = smoothstep01((phase_value - left_center) / (next_center - left_center))
-            center_x = supports[left_leg][0] + blend * (supports[next_leg][0] - supports[left_leg][0])
-            center_y = supports[left_leg][1] + blend * (supports[next_leg][1] - supports[left_leg][1])
-            return -SUPPORT_SHIFT_FRACTION * center_x, -SUPPORT_SHIFT_FRACTION * center_y
-    return 0.0, 0.0
-
-
-def crawl_swinging_legs(gait_time):
-    """Return the legs currently in swing for the sequential crawl phase."""
-    cycle = gait_time * GAIT_FREQUENCY_HZ
-    return {
-        leg_name
-        for leg_name, (_, _, _, phase_offset) in LEG_INFO.items()
-        if (cycle + phase_offset) % 1.0 < SWING_FRACTION
-    }
-
-
-def crawl_targets(gait_time, mode, base_pose=None, blend=1.0, stance_corrections=None):
-    """Generate crawl targets around a captured manual pose, then solve 3-DoF IK."""
-    targets = {}
-    if mode == "stop":
-        for _, name in JOINTS:
-            targets[name] = REST_FEMUR_ANGLE if name.endswith("hip_pitch") else (
-                REST_TIBIA_ANGLE if name.endswith("knee_pitch") else 0.0
-            )
-        return targets
-
-    blend = max(0.0, min(1.0, blend))
-
-    direction = -1.0 if mode == "backward" else 1.0
-    # During stance the stride offset moves from +half-stride to -half-stride,
-    # so the target tangent is opposite the requested chassis rotation.
-    turn_sign = -1.0 if mode == "left" else 1.0
-    stride_metres = TURN_STRIDE_METRES if mode in ("left", "right") else STRIDE_METRES
-    # The gait clock starts when a direction is pressed, not when MuJoCo starts.
-    # That makes every held command begin at the same crawl phase, even after
-    # a long idle or after switching direction.
-    cycle = gait_time * GAIT_FREQUENCY_HZ
-    support_comp_x, support_comp_y = crawl_support_compensation(cycle, base_pose)
-
-    for leg_name, (hip_x, hip_y, heading, phase_offset) in LEG_INFO.items():
-        base_yaw = (base_pose or {}).get(f"{leg_name}_hip_abduction", 0.0)
-        base_femur = (base_pose or {}).get(f"{leg_name}_hip_pitch", REST_FEMUR_ANGLE)
-        base_tibia = (base_pose or {}).get(f"{leg_name}_knee_pitch", REST_TIBIA_ANGLE)
-        base_reach, base_foot_down = leg_foot_geometry(base_femur, base_tibia)
-        base_heading = heading + base_yaw
-        phase = (cycle + phase_offset) % 1.0
-        if phase < SWING_FRACTION:
-            swing_progress = smoothstep01(phase / SWING_FRACTION)
-            # Move the foot forward only while it is clear of the floor. The
-            # eased endpoints avoid a sharp reversal when swing meets stance.
-            stride_offset = (-0.5 + swing_progress) * stride_metres
-            foot_lift = FOOT_LIFT_METRES * math.sin(math.pi * swing_progress)
-        else:
-            stance_progress = smoothstep01(
-                (phase - SWING_FRACTION) / (1.0 - SWING_FRACTION)
-            )
-            # Sweep the planted foot backward at a smooth rate to drive the
-            # chassis forward through ground contact.
-            stride_offset = (0.5 - stance_progress) * stride_metres
-            foot_lift = 0.0
-
-        if mode in ("forward", "backward"):
-            travel_x = direction
-            travel_y = 0.0
-        else:
-            # The ground-relative stance sweep produces the requested chassis yaw.
-            travel_x = turn_sign * math.sin(base_heading)
-            travel_y = -turn_sign * math.cos(base_heading)
-
-        foot_world_x = (
-            hip_x + base_reach * math.cos(base_heading)
-            + stride_offset * travel_x + support_comp_x
-        )
-        foot_world_y = (
-            hip_y + base_reach * math.sin(base_heading)
-            + stride_offset * travel_y + support_comp_y
-        )
-        relative_x = foot_world_x - hip_x
-        relative_y = foot_world_y - hip_y
-        local_x = math.cos(heading) * relative_x + math.sin(heading) * relative_y
-        local_y = -math.sin(heading) * relative_x + math.cos(heading) * relative_y
-        stance_correction = (stance_corrections or {}).get(leg_name, 0.0)
-        if phase >= SWING_FRACTION and stance_progress > 0.85:
-            release_progress = smoothstep01((stance_progress - 0.85) / 0.15)
-            stance_correction *= 1.0 - release_progress
-        foot_down = (
-            base_foot_down + STANCE_PRELOAD_METRES + stance_correction - foot_lift
-        )
-        yaw, femur, tibia = inverse_kinematics(local_x, local_y, foot_down)
-
-        base_yaw = (base_pose or {}).get(f"{leg_name}_hip_abduction", 0.0)
-        base_femur = (base_pose or {}).get(f"{leg_name}_hip_pitch", REST_FEMUR_ANGLE)
-        base_tibia = (base_pose or {}).get(f"{leg_name}_knee_pitch", REST_TIBIA_ANGLE)
-        targets[f"{leg_name}_hip_abduction"] = base_yaw + blend * (yaw - base_yaw)
-        targets[f"{leg_name}_hip_pitch"] = base_femur + blend * (femur - base_femur)
-        targets[f"{leg_name}_knee_pitch"] = base_tibia + blend * (tibia - base_tibia)
-
-    return targets
-
-
-def foot_contact_flags(data, foot_geom_ids, floor_geom_id):
-    """Return whether each named foot geom currently contacts the floor geom."""
-    contacts = {leg_name: False for leg_name in foot_geom_ids}
-    for contact_index in range(data.ncon):
-        contact = data.contact[contact_index]
-        for leg_name, foot_geom_id in foot_geom_ids.items():
-            if {contact.geom1, contact.geom2} == {foot_geom_id, floor_geom_id}:
-                contacts[leg_name] = True
-    return contacts
-
 
 def yaw_only_quaternion(quaternion):
     """Keep the current heading while asking the balance assist to level roll/pitch."""
@@ -488,7 +113,7 @@ def main():
     }
     floor_geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
 
-    # Start in a bent four-foot stance rather than with fully extended legs.
+
     data.qpos[2] = ROOT_STAND_HEIGHT
     rest_pose = {}
     for _, joint_name in JOINTS:
@@ -506,6 +131,42 @@ def main():
         "position": tuple(float(value) for value in data.qpos[:3]),
         "quaternion": yaw_only_quaternion(data.qpos[3:7]),
     }
+
+
+    policy_runtime = None
+    policy_model = None
+    policy_checkpoint = None
+    policy_load_error = None
+    training_dir = HERE.parent / "training"
+    policy_path = training_dir / "best_policy_10m.pt"
+    try:
+        sys.path.insert(0, str(training_dir))
+        import evaluate_policy as policy_runtime
+
+        if policy_path.exists():
+            policy_model, policy_checkpoint = policy_runtime.load_checkpoint(policy_path)
+        else:
+            policy_load_error = f"Policy checkpoint not found: {policy_path}"
+    except Exception as error:
+        policy_load_error = str(error)
+
+    policy_history = deque(maxlen=int(policy_checkpoint["context_steps"])) if policy_checkpoint else deque()
+    policy_state = {"next_inference_time": data.time, "targets": dict(rest_pose)}
+    policy_context = None
+    if policy_checkpoint:
+        qpos_addresses = {name: int(model.jnt_qposadr[joint_ids[name]]) for name in joint_names}
+        dof_addresses = {name: int(model.jnt_dofadr[joint_ids[name]]) for name in joint_names}
+        policy_context = {
+            "angle_limits_deg": policy_checkpoint["angle_limits_deg"],
+            "input_mean": policy_checkpoint["input_mean"],
+            "input_std": policy_checkpoint["input_std"],
+            "qpos_addresses": qpos_addresses,
+            "dof_addresses": dof_addresses,
+            "floor_geom_id": floor_geom_id,
+            "checkpoint": policy_checkpoint,
+            "policy": policy_model,
+            "history": policy_history,
+        }
 
     recorder = EpisodeRecorder(joint_names, LEG_INFO)
     root = tk.Tk()
@@ -540,6 +201,80 @@ def main():
         wraplength=460,
     )
     status.pack(padx=12, pady=(0, 8), anchor="w")
+
+    policy_frame = ttk.LabelFrame(root, text="Policy correction capture")
+    policy_frame.pack(fill="x", padx=12, pady=(0, 8))
+    policy_enabled_var = tk.BooleanVar(value=False)
+    teacher_override_var = tk.BooleanVar(value=False)
+
+    def seed_policy_history():
+        if not policy_context:
+            return
+        policy_history.clear()
+        for _ in range(int(policy_checkpoint["context_steps"])):
+            observation, _, _, _ = policy_runtime.observe(
+                policy_context, data, joint_ids, foot_geom_ids, "stop"
+            )
+            policy_history.append(observation)
+        policy_state["targets"] = dict(rest_pose)
+        policy_state["next_inference_time"] = data.time
+
+    def toggle_policy_mode():
+        enabled = bool(policy_enabled_var.get())
+        if enabled:
+            seed_policy_history()
+        if recorder.active:
+            recorder.add_command_event(
+                data.time, "learned_policy_enabled" if enabled else "learned_policy_disabled",
+                movement_mode["value"],
+            )
+            recorder.metadata["policy_checkpoint"] = str(policy_path) if enabled else None
+            recorder.metadata["correction_capture"] = "teacher_targets_logged_for_policy_visited_states"
+            recorder._write_metadata()
+        teacher_override_box.configure(state="normal" if enabled else "disabled")
+        policy_status.configure(
+            text=("Policy active. CSV target columns keep scripted-teacher labels. "
+                  "Use teacher override to correct the current policy state.")
+            if enabled else (policy_load_error or "Policy disabled; scripted crawl controller is active.")
+        )
+
+    def toggle_teacher_override():
+        if recorder.active:
+            enabled = bool(teacher_override_var.get())
+            recorder.add_command_event(
+                data.time,
+                "teacher_override_enabled" if enabled else "teacher_override_disabled",
+                movement_mode["value"],
+            )
+        policy_status.configure(
+            text=("Teacher correction is applied; recorded targets are teacher labels." if teacher_override_var.get()
+                  else "Policy active. CSV target columns keep scripted-teacher labels.")
+        )
+
+    policy_available = policy_model is not None
+    policy_checkbox = ttk.Checkbutton(
+        policy_frame, text="Run the trained 10M policy during movement",
+        variable=policy_enabled_var, command=toggle_policy_mode,
+        state="normal" if policy_available else "disabled",
+    )
+    policy_checkbox.pack(padx=5, pady=(4, 0), anchor="w")
+    teacher_override_box = ttk.Checkbutton(
+        policy_frame, text="Apply scripted teacher targets now (correction)",
+        variable=teacher_override_var, command=toggle_teacher_override, state="disabled",
+    )
+    teacher_override_box.pack(padx=5, pady=2, anchor="w")
+    policy_status = ttk.Label(
+        policy_frame,
+        text=("10M policy loaded. Enable it, start an episode, then hold a direction." if policy_available
+              else f"Policy unavailable: {policy_load_error or 'checkpoint failed to load'}"),
+        wraplength=460,
+    )
+    policy_status.pack(padx=5, pady=(0, 4), anchor="w")
+    ttk.Label(
+        policy_frame,
+        text="Hotkey E toggles teacher correction while a direction key stays held.",
+        wraplength=460,
+    ).pack(padx=5, pady=(0, 4), anchor="w")
 
     def start_gait(direction):
         previous_mode = movement_mode["value"]
@@ -681,6 +416,18 @@ def main():
         except (OSError, RuntimeError) as error:
             capture_status.configure(text=f"Could not start episode: {error}")
             return
+        recorder.metadata["action_label_source"] = "scripted_teacher_targets"
+        recorder.metadata["target_label_source"] = "scripted_teacher"
+        recorder.metadata["target_label_semantics"] = (
+            "target_*_deg contains teacher targets, independent of applied_controller"
+        )
+        recorder.metadata["learned_policy_active_at_start"] = bool(policy_enabled_var.get())
+        recorder.metadata["policy_checkpoint"] = str(policy_path) if policy_enabled_var.get() else None
+        recorder.metadata["correction_capture"] = (
+            "teacher_targets_logged_for_policy_visited_states"
+            if policy_enabled_var.get() else "scripted_demonstration"
+        )
+        recorder._write_metadata()
         sample_clock["next_sim_time"] = data.time + DATASET_SAMPLE_PERIOD_SECONDS
         capture_status.configure(
             text=f"Recording {episode_id} at 50 Hz simulation time. Demonstrate the selected task, then end it."
@@ -716,9 +463,15 @@ def main():
         "d": "right", "right": "right",
     }
     pressed_keys = []
+    teacher_key_latched = {"value": False}
 
     def key_down(event):
         key = event.keysym.lower()
+        if key == "e" and policy_enabled_var.get() and not teacher_key_latched["value"]:
+            teacher_key_latched["value"] = True
+            teacher_override_var.set(not teacher_override_var.get())
+            toggle_teacher_override()
+            return "break"
         mode = key_modes.get(key)
         if mode is None:
             return
@@ -729,6 +482,9 @@ def main():
 
     def key_up(event):
         key = event.keysym.lower()
+        if key == "e":
+            teacher_key_latched["value"] = False
+            return "break"
         if key not in key_modes:
             return
         if key in pressed_keys:
@@ -877,9 +633,29 @@ def main():
                 targets = crawl_targets(
                     gait_time, mode, gait_base_pose, blend, stance_corrections
                 )
-        movement_mode["last_targets"] = dict(targets)
 
-        for joint_name, target in targets.items():
+
+        teacher_targets = dict(targets)
+        learned_policy_active = bool(policy_enabled_var.get() and policy_model and mode != "stop")
+        applied_controller = "scripted_teacher"
+        applied_targets = teacher_targets
+        if learned_policy_active:
+            if data.time + 1e-12 >= policy_state["next_inference_time"]:
+                observation, _, _, _ = policy_runtime.observe(
+                    policy_context, data, joint_ids, foot_geom_ids, mode
+                )
+                policy_history.append(observation)
+                policy_state["targets"] = policy_runtime.angles_from_policy(
+                    policy_context, observation
+                )
+                while policy_state["next_inference_time"] <= data.time + 1e-12:
+                    policy_state["next_inference_time"] += DATASET_SAMPLE_PERIOD_SECONDS
+            if not teacher_override_var.get():
+                applied_targets = policy_state["targets"]
+                applied_controller = "learned_policy"
+        movement_mode["last_targets"] = dict(applied_targets)
+
+        for joint_name, target in applied_targets.items():
             data.ctrl[actuator_ids[joint_name]] = target
 
         data.xfrc_applied[:] = 0.0
@@ -910,6 +686,8 @@ def main():
                 "balance_assist_active": int(
                     balance_assist_var.get() and movement_mode["value"] == "stop"
                 ),
+                "applied_controller": applied_controller,
+                "target_label_source": "scripted_teacher",
                 "root_x_m": data.qpos[0], "root_y_m": data.qpos[1], "root_z_m": data.qpos[2],
                 "root_quat_w": data.qpos[3], "root_quat_x": data.qpos[4],
                 "root_quat_y": data.qpos[5], "root_quat_z": data.qpos[6],
@@ -920,7 +698,8 @@ def main():
                 joint_id = joint_ids[joint_name]
                 qpos_address = model.jnt_qposadr[joint_id]
                 dof_address = model.jnt_dofadr[joint_id]
-                row[f"target_{joint_name}_deg"] = math.degrees(targets[joint_name])
+                label_targets = teacher_targets if learned_policy_active else applied_targets
+                row[f"target_{joint_name}_deg"] = math.degrees(label_targets[joint_name])
                 row[f"actual_{joint_name}_deg"] = math.degrees(data.qpos[qpos_address])
                 row[f"actual_{joint_name}_vel_degps"] = math.degrees(data.qvel[dof_address])
             for leg_name in LEG_INFO:

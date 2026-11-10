@@ -1,33 +1,22 @@
 <mujoco model="Printed_Bots_quadruped_spider_12servo_approx">
-  <!--
-    Visual model uses the supplied body, coxa, femur, hinge, and pointed tibia
-    STL meshes. CAD body parts share one frame; leg parts are placed on articulated
-    links using estimated pivots and orientations. Collision proxies remain simple
-    boxes, capsules, and hidden toe contacts, so this is still not a calibrated
-    digital twin. Confirm servo zeroes, stops, and clearances before hardware use.
 
-    Each leg has a coxa/yaw joint, femur/pitch joint, and tibia/knee joint.
-    Existing joint and actuator names are kept for compatibility with
-    control_test.py. Coordinates: X forward, Y left, Z up; lengths in metres.
-  -->
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.002" gravity="0 0 -9.81" integrator="implicitfast"/>
   <size njmax="800" nconmax="300"/>
 
   <default>
     <joint damping="0.12" armature="0.006" limited="true"/>
-    <!-- Decorative printed/servo details should not collide with moving links. -->
+
     <geom condim="3" friction="0.9 0.02 0.002" solref="0.01 1" solimp="0.9 0.95 0.001" contype="0" conaffinity="0"/>
     <default class="contact">
       <geom contype="1" conaffinity="1"/>
     </default>
-    <!-- Virtual servo tuning improves target tracking in the visual simulator.
-         Measure the real servos before using these limits for hardware. -->
+
     <position kp="10" kv="0.5" ctrllimited="true" ctrlrange="-1.5 1.5" forcelimited="true" forcerange="-0.45 0.45"/>
   </default>
 
   <asset>
-    <!-- Supplied printed parts, kept as articulated visual geometry. -->
+
     <mesh name="printed_body_lower" file="assets/body-d.stl" scale="0.001 0.001 0.001"/>
     <mesh name="printed_body_upper" file="assets/body-u.stl" scale="0.001 0.001 0.001"/>
     <mesh name="printed_body_middle" file="assets/body-m.stl" scale="0.001 0.001 0.001"/>
@@ -37,33 +26,37 @@
     <mesh name="printed_tibia_front" file="assets/tibia-f.stl" scale="0.001 0.001 0.001"/>
     <mesh name="printed_tibia_rear" file="assets/tibia-b.stl" scale="0.001 0.001 0.001"/>
     <mesh name="printed_hinge" file="assets/hinge.stl" scale="0.001 0.001 0.001"/>
-    <!-- Tiny hidden contact proxy at each claw tip; the visible tip is the STL. -->
+
   </asset>
 
   <worldbody>
     <light name="top_light" pos="0 -1 2" dir="0 0 -1"/>
-    <geom class="contact" name="floor" type="plane" pos="0 0 0" size="2 2 0.1" rgba="0.78 0.80 0.83 1"/>
+    <geom class="contact" name="floor" type="plane" pos="0 0 0" size="1.5 1.5 0.1" rgba="0.78 0.80 0.83 1"/>
 
-    <!-- CAD-inspired central frame. Dimensions remain approximate. -->
+    <geom name="arena_border_x_pos" type="box" pos="1.5 0 0.004" size="0.012 1.5 0.004" rgba="0.18 0.20 0.24 1"/>
+    <geom name="arena_border_x_neg" type="box" pos="-1.5 0 0.004" size="0.012 1.5 0.004" rgba="0.18 0.20 0.24 1"/>
+    <geom name="arena_border_y_pos" type="box" pos="0 1.5 0.004" size="1.5 0.012 0.004" rgba="0.18 0.20 0.24 1"/>
+    <geom name="arena_border_y_neg" type="box" pos="0 -1.5 0.004" size="1.5 0.012 0.004" rgba="0.18 0.20 0.24 1"/>
+
+    <body name="rl_goal_marker" mocap="true" pos="0 0 5">
+      <geom name="rl_goal_puck_visual" type="cylinder" pos="0 0 0.005" size="0.055 0.005" rgba="0.96 0.78 0.12 0.8"/>
+      <geom name="rl_goal_beacon_visual" type="sphere" pos="0 0 0.075" size="0.018" rgba="0.98 0.48 0.08 0.9"/>
+    </body>
+
     <body name="chassis" pos="0 0 0.12">
       <freejoint name="root"/>
-      <!-- Compact collision core stays inside the supplied printed frame. -->
+
       <geom class="contact" name="chassis_geom" type="box" size="0.038 0.034 0.006" pos="0 0 0" mass="0.25" rgba="0.69 0.78 0.30 0"/>
-      <!-- Body meshes preserve the source assembly orientation around CAD
-           center (120,58,68) mm. Mesh pose compensation is included in pos/quat. -->
+
       <geom name="printed_body_lower_geom" type="mesh" mesh="printed_body_lower" pos="0.055748 0.057018 -0.132029" quat="-0.507446 -0.504701 0.492882 -0.494816" mass="0" rgba="0.22 0.44 0.25 1"/>
       <geom name="printed_body_middle_geom" type="mesh" mesh="printed_body_middle" pos="0.078059 0.066657 -0.106721" quat="-0.444390 -0.441864 0.541340 -0.560557" mass="0" rgba="0.12 0.18 0.16 1"/>
       <geom name="printed_body_upper_geom" type="mesh" mesh="printed_body_upper" pos="0.062861 0.076575 -0.109195" quat="-0.488958 -0.490970 0.510785 -0.508888" mass="0" rgba="0.40 0.55 0.30 1"/>
-      <!-- Central electronics/battery panel visible in the CAD reference. -->
+
       <geom name="electronics_panel" type="box" pos="0 0 0.008" size="0.030 0.021 0.0025" mass="0.012" rgba="0.12 0.68 0.83 1"/>
       <geom name="electronics_panel_trim" type="box" pos="0 0 0.011" size="0.020 0.014 0.001" mass="0.002" rgba="0.18 0.43 0.73 1"/>
       <geom name="front_camera_module_geom" type="box" pos="0.039 0 0.011" size="0.006 0.007 0.004" mass="0.008" rgba="0.08 0.08 0.08 1"/>
       <camera name="front_camera" pos="0.046 0 0.011" xyaxes="0 -1 0 0.342 0 0.940" fovy="75"/>
 
-      <!-- MuJoCo recenters each STL into its principal inertia frame. The mesh
-           geom poses below compensate for that conversion; keep them paired
-           with these exact supplied assets when editing the assembly. -->
-      <!-- Front-left leg: coxa yaw, femur pitch, tibia pitch. -->
       <body name="front_left_hip" pos="0.032 0.027 0" quat="0.92388 0 0 0.382683">
         <joint name="front_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
         <geom name="front_left_printed_coxa" type="mesh" mesh="printed_coxa_front" pos="-0.000920 -0.136663 -0.078163" quat="0.941154 0.028223 0.001731 0.336792" mass="0" rgba="0.83 0.83 0.77 1"/>
@@ -95,7 +88,6 @@
         </body>
       </body>
 
-      <!-- Front-right leg. -->
       <body name="front_right_hip" pos="0.032 -0.027 0" quat="0.92388 0 0 -0.382683">
         <joint name="front_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
         <geom name="front_right_printed_coxa" type="mesh" mesh="printed_coxa_front" pos="-0.128663 0.008921 -0.078163" quat="0.903644 0.021180 -0.018733 -0.427350" mass="0" rgba="0.83 0.83 0.77 1"/>
@@ -127,7 +119,6 @@
         </body>
       </body>
 
-      <!-- Rear-left leg. -->
       <body name="rear_left_hip" pos="-0.032 0.027 0" quat="0.382683 0 0 0.92388">
         <joint name="rear_left_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
         <geom name="rear_left_printed_coxa" type="mesh" mesh="printed_coxa_rear" pos="0.183429 -0.014521 -0.074407" quat="-0.336792 -0.001731 -0.028223 -0.941154" mass="0" rgba="0.83 0.83 0.77 1"/>
@@ -159,7 +150,6 @@
         </body>
       </body>
 
-      <!-- Rear-right leg. -->
       <body name="rear_right_hip" pos="-0.032 -0.027 0" quat="0.382683 0 0 -0.92388">
         <joint name="rear_right_hip_abduction" type="hinge" axis="0 0 1" range="-0.70 0.70"/>
         <geom name="rear_right_printed_coxa" type="mesh" mesh="printed_coxa_rear" pos="0.022520 0.175429 -0.074407" quat="0.427350 0.018733 -0.021180 -0.903644" mass="0" rgba="0.83 0.83 0.77 1"/>
