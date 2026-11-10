@@ -1,0 +1,22 @@
+#{"t_start": 1793452401.6376762, "env_id": "None"}
+r,l,t,is_success,is_fallen,out_of_bounds
+-2.157909,100,38.887052,False,False,False
+-1.000002,100,39.219177,False,False,False
+-1.0,100,39.576899,False,False,False
+-1.000001,100,39.96771,False,False,False
+-2.757113,100,40.376735,False,False,False
+-1.000001,100,62.233952,False,False,False
+0.282704,100,62.60277,False,False,False
+0.089259,100,62.993469,False,False,False
+-0.999999,100,63.302454,False,False,False
+-0.999999,100,63.601098,False,False,False
+-1.000003,100,85.009047,False,False,False
+-0.317995,100,85.412498,False,False,False
+0.675648,100,85.821366,False,False,False
+-0.66902,100,86.21805,False,False,False
+-0.658424,100,86.578165,False,False,False
+0.413603,100,112.820971,False,False,False
+0.627676,100,113.228701,False,False,False
+0.658076,100,113.623553,False,False,False
+0.728882,100,114.035562,False,False,False
+0.490007,100,114.410702,False,False,False

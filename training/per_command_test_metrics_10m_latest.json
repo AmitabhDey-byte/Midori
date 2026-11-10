@@ -1,0 +1,115 @@
+{
+  "checkpoint": "D:\\midori\\training\\best_policy_10m.pt",
+  "dataset_audit": {
+    "metadata_files": 119,
+    "successful_episodes": 114,
+    "ignored_non_success": 5,
+    "missing_csv": 0,
+    "wrong_gait": 0,
+    "task_counts": {
+      "forward": 26,
+      "backward": 31,
+      "left": 30,
+      "right": 27
+    }
+  },
+  "episode_split": {
+    "train": 80,
+    "validation": 17,
+    "test": 17
+  },
+  "test_windows": 14011,
+  "metrics": {
+    "stop": {
+      "windows": 2628,
+      "mean_joint_mae_deg": 0.22413545101258264,
+      "per_joint_mae_deg": {
+        "front_left_hip_abduction": 0.1888047371722599,
+        "front_left_hip_pitch": 0.28743836896237457,
+        "front_left_knee_pitch": 0.16823932803971853,
+        "front_right_hip_abduction": 0.11042405200400056,
+        "front_right_hip_pitch": 0.2781847283688653,
+        "front_right_knee_pitch": 0.21098841079308306,
+        "rear_left_hip_abduction": 0.2034622513250284,
+        "rear_left_hip_pitch": 0.2828796123411706,
+        "rear_left_knee_pitch": 0.3039460027042798,
+        "rear_right_hip_abduction": 0.11654234236862572,
+        "rear_right_hip_pitch": 0.2752992902633708,
+        "rear_right_knee_pitch": 0.2634162878082147
+      }
+    },
+    "forward": {
+      "windows": 3281,
+      "mean_joint_mae_deg": 0.2262871797178387,
+      "per_joint_mae_deg": {
+        "front_left_hip_abduction": 0.1511003332101181,
+        "front_left_hip_pitch": 0.2436047070641359,
+        "front_left_knee_pitch": 0.2761753133280239,
+        "front_right_hip_abduction": 0.1483930134727366,
+        "front_right_hip_pitch": 0.21244195353928066,
+        "front_right_knee_pitch": 0.27567428755565987,
+        "rear_left_hip_abduction": 0.16963222070537956,
+        "rear_left_hip_pitch": 0.2851482511766577,
+        "rear_left_knee_pitch": 0.3556364716092537,
+        "rear_right_hip_abduction": 0.14122787592530353,
+        "rear_right_hip_pitch": 0.19158317412371392,
+        "rear_right_knee_pitch": 0.2648285549038009
+      }
+    },
+    "backward": {
+      "windows": 4911,
+      "mean_joint_mae_deg": 3.2499492556318397,
+      "per_joint_mae_deg": {
+        "front_left_hip_abduction": 3.6389856250963026,
+        "front_left_hip_pitch": 1.951603292736897,
+        "front_left_knee_pitch": 2.3603580379165567,
+        "front_right_hip_abduction": 3.436907438169072,
+        "front_right_hip_pitch": 1.8506311222728984,
+        "front_right_knee_pitch": 2.3560835056782525,
+        "rear_left_hip_abduction": 2.226922182909961,
+        "rear_left_hip_pitch": 3.2542650579141146,
+        "rear_left_knee_pitch": 6.271712978791495,
+        "rear_right_hip_abduction": 2.1966424932256707,
+        "rear_right_hip_pitch": 3.364649060059406,
+        "rear_right_knee_pitch": 6.090630272811453
+      }
+    },
+    "left": {
+      "windows": 1397,
+      "mean_joint_mae_deg": 0.21936261684866823,
+      "per_joint_mae_deg": {
+        "front_left_hip_abduction": 0.20467154595562748,
+        "front_left_hip_pitch": 0.18585360494483782,
+        "front_left_knee_pitch": 0.23475073607154817,
+        "front_right_hip_abduction": 0.15109835011944975,
+        "front_right_hip_pitch": 0.22649713548577352,
+        "front_right_knee_pitch": 0.20151865260912047,
+        "rear_left_hip_abduction": 0.18055819368915657,
+        "rear_left_hip_pitch": 0.2290182074310728,
+        "rear_left_knee_pitch": 0.3731035726056859,
+        "rear_right_hip_abduction": 0.13484045678209677,
+        "rear_right_hip_pitch": 0.23051573400773673,
+        "rear_right_knee_pitch": 0.2799252124819126
+      }
+    },
+    "right": {
+      "windows": 1794,
+      "mean_joint_mae_deg": 0.25153393651283823,
+      "per_joint_mae_deg": {
+        "front_left_hip_abduction": 0.1562191414228384,
+        "front_left_hip_pitch": 0.2059529880153628,
+        "front_left_knee_pitch": 0.3256333240754499,
+        "front_right_hip_abduction": 0.19924106260138108,
+        "front_right_hip_pitch": 0.23934172913549645,
+        "front_right_knee_pitch": 0.2682631970295461,
+        "rear_left_hip_abduction": 0.19520038459540853,
+        "rear_left_hip_pitch": 0.2961710955821391,
+        "rear_left_knee_pitch": 0.31578468594650916,
+        "rear_right_hip_abduction": 0.21843172157112525,
+        "rear_right_hip_pitch": 0.2079540518496038,
+        "rear_right_knee_pitch": 0.39021385632919775
+      }
+    }
+  },
+  "interpretation": "Per-command held-out action-target MAE; it measures imitation, not closed-loop stability."
+}

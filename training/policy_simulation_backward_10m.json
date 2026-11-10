@@ -1,0 +1,60 @@
+{
+  "checkpoint": "D:\\midori\\training\\best_policy_10m.pt",
+  "simulator_xml": "D:\\midori\\mujoco\\hello.xml",
+  "gait_version": "stance_transition_sequential_crawl_v3",
+  "command": "backward",
+  "initial_pose": "screenshot slider pose; angles clamped to model limits",
+  "settle_seconds_with_gravity": 3.0,
+  "comparison": {
+    "policy": {
+      "controller": "policy",
+      "command": "backward",
+      "duration_sim_s": 8.0,
+      "gravity_mps2": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "virtual_stabilization": false,
+      "initial_root_xyz_m": [
+        -0.0002163992909082233,
+        0.0002622640706238324,
+        0.0722627237035016
+      ],
+      "final_root_xyz_m": [
+        0.03912302953806447,
+        0.02217433089179563,
+        0.04790393086530744
+      ],
+      "net_yaw_change_deg": -2.8175971875508936,
+      "forward_displacement_m": 0.03933942882897269,
+      "mean_forward_speed_mps": 0.0049174286036215865,
+      "min_root_z_m": 0.04257841929727661,
+      "max_abs_roll_deg": 9.90763940019181,
+      "max_abs_pitch_deg": 6.661519934306363,
+      "root_z_min_max_m": [
+        0.04257841929727661,
+        0.12835210016133655
+      ],
+      "foot_contact_frame_fraction_by_count": {
+        "0": 0.0105,
+        "1": 0.02975,
+        "2": 0.18925,
+        "3": 0.2045,
+        "4": 0.566
+      },
+      "per_foot_contact_fraction": {
+        "front_left": 0.9395,
+        "front_right": 0.72975,
+        "rear_left": 0.68925,
+        "rear_right": 0.92725
+      },
+      "target_joint_limit_violation_count": 0,
+      "max_actual_joint_limit_violation_deg": 0.3945754300313991,
+      "teacher_forced_mean_target_error_deg": null,
+      "fell_by_simple_threshold": true,
+      "sample_count_at_50hz": 400
+    }
+  },
+  "interpretation": "Imitation metrics do not establish stable locomotion; inspect displacement, tilt, height, and toe-contact fractions."
+}

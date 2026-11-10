@@ -1,0 +1,60 @@
+{
+  "checkpoint": "D:\\midori\\training\\best_policy_10m.pt",
+  "simulator_xml": "D:\\midori\\mujoco\\hello.xml",
+  "gait_version": "stance_transition_sequential_crawl_v3",
+  "command": "backward",
+  "initial_pose": "screenshot slider pose; angles clamped to model limits",
+  "settle_seconds_with_gravity": 3.0,
+  "comparison": {
+    "policy": {
+      "controller": "policy",
+      "command": "backward",
+      "duration_sim_s": 60.0,
+      "gravity_mps2": [
+        0.0,
+        0.0,
+        -9.81
+      ],
+      "virtual_stabilization": false,
+      "initial_root_xyz_m": [
+        -0.0002163992909082233,
+        0.0002622640706238324,
+        0.0722627237035016
+      ],
+      "final_root_xyz_m": [
+        0.10884855932367633,
+        -0.011459141453757147,
+        0.1272350838566358
+      ],
+      "net_yaw_change_deg": 24.711313900783054,
+      "forward_displacement_m": 0.10906495861458455,
+      "mean_forward_speed_mps": 0.0018177493102430758,
+      "min_root_z_m": 0.05998696694514349,
+      "max_abs_roll_deg": 15.03106348934283,
+      "max_abs_pitch_deg": 21.980219962774527,
+      "root_z_min_max_m": [
+        0.05998696694514349,
+        0.12943146484328946
+      ],
+      "foot_contact_frame_fraction_by_count": {
+        "0": 0.001,
+        "1": 0.010866666666666667,
+        "2": 0.2947666666666667,
+        "3": 0.3645333333333333,
+        "4": 0.3288333333333333
+      },
+      "per_foot_contact_fraction": {
+        "front_left": 0.5651333333333334,
+        "front_right": 0.8193666666666667,
+        "rear_left": 0.8622666666666666,
+        "rear_right": 0.7625666666666666
+      },
+      "target_joint_limit_violation_count": 0,
+      "max_actual_joint_limit_violation_deg": 0.027610835248798794,
+      "teacher_forced_mean_target_error_deg": null,
+      "fell_by_simple_threshold": false,
+      "sample_count_at_50hz": 3000
+    }
+  },
+  "interpretation": "Imitation metrics do not establish stable locomotion; inspect displacement, tilt, height, and toe-contact fractions."
+}
