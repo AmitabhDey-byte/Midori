@@ -1,11 +1,13 @@
 [project]
 name = "midori"
 version = "0.1.0"
-description = "Add your description here"
+description = "MuJoCo simulation and learning tools for the Midori quadruped robot"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "gymnasium>=1.2,<2",
     "matplotlib>=3.11.2",
     "mujoco>=3.17.0",
     "numpy>=2.5.4",
+    "stable-baselines3>=2.9,<3",
 ]

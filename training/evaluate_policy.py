@@ -18,8 +18,8 @@ from torch import nn
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "mujoco"))
 sys.path.insert(0, str(ROOT / "training"))
-import control_test as gait  # noqa: E402
-from physics_policy_10m import TemporalPhysicsPolicy  # noqa: E402
+import control_test as gait
+from physics_policy_10m import TemporalPhysicsPolicy
 
 
 JOINT_NAMES = [name for _, name in gait.JOINTS]
@@ -56,8 +56,8 @@ class MidoriLocomotionPolicy(nn.Module):
 
 
 def load_checkpoint(path: Path):
-    # The checkpoint stores numpy arrays for normalization. Allow only the
-    # ordinary numpy reconstruction types used by the training notebook.
+
+
     allow = [np._core.multiarray._reconstruct, np.ndarray, np.dtype, np.dtypes.Float32DType]
     with torch.serialization.safe_globals(allow):
         checkpoint = torch.load(path, map_location="cpu", weights_only=True)
@@ -98,6 +98,11 @@ def quat_inverse_rotate(q, vector):
     inverse_vector = np.asarray([-x, -y, -z], dtype=np.float32)
     cross = 2.0 * np.cross(inverse_vector, vector)
     return np.asarray(vector + w * cross + np.cross(inverse_vector, cross), dtype=np.float32)
+
+
+def quaternion_yaw(q):
+    w, x, y, z = q
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
 
 
 def observe(model, data, joint_ids, foot_geom_ids, command):
@@ -185,7 +190,7 @@ def start_from_screenshot(xml_path, duration, settle_seconds, policy, checkpoint
         data.ctrl[actuator_ids[name]] = angle
     mujoco.mj_forward(mj_model, data)
 
-    # Settle with true gravity and no virtual chassis wrench, as in the GUI.
+
     for _ in range(round(settle_seconds / mj_model.opt.timestep)):
         for name in JOINT_NAMES:
             data.ctrl[actuator_ids[name]] = manual_pose[name]
@@ -219,7 +224,7 @@ def start_from_screenshot(xml_path, duration, settle_seconds, policy, checkpoint
         "input_std": checkpoint["input_std"],
     }
 
-    # Fill the policy history with stopped observations at the settled pose.
+
     history = deque(maxlen=int(checkpoint["context_steps"]))
     substeps_per_observation = round(1.0 / (checkpoint["sample_rate_hz"] * mj_model.opt.timestep))
     for _ in range(int(checkpoint["context_steps"])):
@@ -238,8 +243,8 @@ def angles_from_policy(context, observation):
     tensor = torch.from_numpy(np.stack(context["history"])[None, ...])
     with torch.no_grad():
         output = context["policy"](tensor)
-        # The newer physics-informed policy returns action, velocity, force,
-        # and action-delta predictions; the older GRU returns only its action.
+
+
         action = output[0] if isinstance(output, tuple) else output
         normalized_target = action.cpu().numpy()[0]
     limits = np.asarray(checkpoint["angle_limits_deg"], dtype=np.float32)
@@ -266,6 +271,9 @@ def run_rollout(context, controller_name, viewer=None, command="forward"):
     action_steps = observation_steps * training_stride
     total_steps = round(context["duration"] / dt)
     initial_position = np.asarray(data.qpos[:3], dtype=np.float64).copy()
+    initial_yaw = quaternion_yaw(data.qpos[3:7])
+    previous_yaw = initial_yaw
+    accumulated_yaw = 0.0
     min_root_z = float(data.qpos[2])
     max_roll = 0.0
     max_pitch = 0.0
@@ -352,6 +360,9 @@ def run_rollout(context, controller_name, viewer=None, command="forward"):
             foot_contact_samples[leg] += int(last_contacts[leg])
         q = data.qpos[3:7]
         w, x, y, z = q
+        yaw = quaternion_yaw(q)
+        accumulated_yaw += math.atan2(math.sin(yaw - previous_yaw), math.cos(yaw - previous_yaw))
+        previous_yaw = yaw
         roll = math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
         pitch = math.asin(max(-1.0, min(1.0, 2 * (w * y - z * x))))
         max_roll = max(max_roll, abs(roll))
@@ -381,6 +392,7 @@ def run_rollout(context, controller_name, viewer=None, command="forward"):
         "virtual_stabilization": False,
         "initial_root_xyz_m": initial_position.tolist(),
         "final_root_xyz_m": final_position.tolist(),
+        "net_yaw_change_deg": math.degrees(accumulated_yaw),
         "forward_displacement_m": forward_displacement,
         "mean_forward_speed_mps": forward_displacement / context["duration"],
         "min_root_z_m": min_root_z,
@@ -408,7 +420,7 @@ def run_rollout(context, controller_name, viewer=None, command="forward"):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, default=ROOT / "training" / "best_policy.pt")
+    parser.add_argument("--checkpoint", type=Path, default=ROOT / "training" / "best_policy_10m.pt")
     parser.add_argument("--xml", type=Path, default=ROOT / "mujoco" / "hello.xml")
     parser.add_argument("--command", choices=("forward", "backward", "left", "right"), default="forward",
                         help="Movement command supplied to the learned policy")
