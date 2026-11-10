@@ -59,6 +59,45 @@ The gait is a continuous, one-foot-at-a-time four-beat crawl based on the suppli
 
 The virtual position servos use a 0.45 Nm torque limit for clearer joint motion in simulation. This is a visual-control setting, not a measured SG90 torque model; replace it with measured servo torque, speed, and load before treating the simulation as hardware-calibrated.
 
+## Goal-relative RL environment
+
+The scene is now a bounded 3 m x 3 m square floor with visible border rails and no internal obstacles. It stays flat for the first RL task so the policy can learn locomotion toward goals before obstacle avoidance is introduced. Crossing the 1.42 m arena boundary ends the episode with a penalty.
+
+`goal_navigation_env.py` provides a Gymnasium environment. It removes fixed cardinal checkpoints: each reset samples a new target direction and distance and moves one visual goal marker there. The current long-range curriculum samples targets 0.45–1.15 m from the robot and allows 60 simulated seconds per episode. An explicit `goal_xy` can be passed to `reset(options=...)` for repeatable evaluation. The robot starts near the center with a randomized heading. Goal positions are not tied to A/B/C/D or to a direction.
+
+The 59-value observation includes the goal's X/Y vector in the robot's body frame, normalized distance and bearing; projected gravity; body-frame linear/angular velocity; all 12 joint angles and rates; body-frame claw positions; foot contacts; and a one-hot encoding of the active motion command. It intentionally omits absolute world position and yaw, so the policy must use goal-relative state across arena locations and starting headings. The PPO action is one of five high-level commands: stop, forward, backward, turn left, or turn right. The existing crawl gait generator translates that command into the 12 joint targets and advances the physics at 50 Hz; PPO chooses a new command every 0.2 seconds.
+
+The reward gives incremental credit for reducing goal distance, a larger bonus for a claw entering the goal touch radius while the robot remains upright, and penalties for falls, leaving the arena, command changes, and time. `reset()` randomizes the start and goal; `step()` returns the current observation, reward, terminal/truncation flags, and diagnostic metrics. The PPO trainer is `training/train_goal_ppo.py`. This first pilot learns a goal-directed command selector over the existing scripted crawl gait. It does not fine-tune or load the 10M behavior-cloned joint policy, and it does not learn joint-level walking from scratch.
+
+Install the dependency and use the environment from the repository root:
+
+```powershell
+uv sync
+uv run python mujoco/preview_goal_env.py
+```
+
+The preview keeps the robot in its starting servo pose so you can inspect the arena and the current randomized target. Pass `--seed 7` to reproduce a target placement. It is a scene preview, not an RL rollout.
+
+## Phase 2: front-leg wave preview
+
+The robot has four legs and no separate arm, so the first greeting prototype uses the front-left leg as the waving limb. Preview the slow raise, side-to-side sweep, and lower sequence:
+
+```powershell
+uv run python mujoco/phase2_wave_demo.py --duration 24
+```
+
+The other three legs remain at the standing joint targets while the front-left leg lifts and sweeps. This script is a scripted reference motion for checking tripod support and joint clearance. It is not learned, does not detect people, and is not ready for the physical robot. Once the simulation motion is stable, record successful wave demonstrations and train a wave skill that accepts an explicit greeting request. Person detection can be connected later through the camera.
+
+Climbing is a separate follow-on task: add randomized low obstacles to the MuJoCo scene, expose obstacle-relative distance and height to the policy, and train a stepping skill in gradually harder terrain. Keep the flat-ground navigation checkpoint as the baseline while developing that environment.
+
+Start a small local PPO pilot from the repository root:
+
+```powershell
+uv run python training/train_goal_ppo.py --timesteps 20000 --envs 1 --eval-freq 5000 --eval-episodes 5
+```
+
+Each PPO decision holds one motion command for 0.2 simulated seconds. The current long-range environment allows up to 60 simulated seconds per episode. Training checkpoints and logs are saved under the selected output folder. The completed long-range run is in `training/goal_nav_ppo_longrange/`.
+
 ### Video movement reference
 
 The gait and stance were compared with the [Spider Robot v3.0 demo](https://youtu.be/5hAmD499sJs). The visible robot has a low central body, legs spread outward, and narrow pointed feet. Its leg movement is a crawl with individual feet lifting and returning to the floor, rather than a wheeled or holonomic glide. The original demonstration uses finite step sequences, while Midori keeps the requested hold-to-move control: it continues while a direction is held and stops on release.
